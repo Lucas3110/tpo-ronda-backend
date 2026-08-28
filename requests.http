@@ -1,0 +1,42 @@
+### Colección de pruebas de la API - Punto 1
+### Se ejecuta con la extensión "REST Client" de VS Code (botón "Send Request").
+### Si preferís Postman, cada bloque es un request: método + URL + body JSON.
+
+@host = http://localhost:3000
+@email = lucas.prueba@gmail.com
+@password = secreto123
+
+### 0) La API está viva
+GET {{host}}/api/health
+
+### 1) Registro -> crea el usuario y envía el OTP
+# El código aparece en la terminal donde corre "npm run dev"
+# y también en "codigoDesarrollo" mientras OTP_EXPOSE_IN_RESPONSE=true.
+POST {{host}}/api/auth/registro
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "nombre": "Lucas"
+}
+
+### 2) Reenviar el código (si no llegó o venció)
+# Ojo: hay un cooldown de 60 segundos entre envíos -> responde 429.
+POST {{host}}/api/auth/otp/enviar
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "proposito": "REGISTRO"
+}
+
+### 3) Verificar el código -> confirma la cuenta y devuelve el token
+POST {{host}}/api/auth/otp/verificar
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "codigo": "123456",
+  "proposito": "REGISTRO"
+}
