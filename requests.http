@@ -40,3 +40,38 @@ Content-Type: application/json
   "codigo": "123456",
   "proposito": "REGISTRO"
 }
+
+### 4) Login con email + contraseña
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### 5) Login por OTP - paso 1: pedir el código
+POST {{host}}/api/auth/otp/enviar
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "proposito": "LOGIN"
+}
+
+### 6) Login por OTP - paso 2: verificar y recibir el token
+POST {{host}}/api/auth/otp/verificar
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "codigo": "123456",
+  "proposito": "LOGIN"
+}
+
+### 7) Ruta privada: datos del usuario logueado
+# Pegá abajo el token que devolvieron los pasos 3, 4 o 6.
+@token = PEGAR_TOKEN_ACA
+
+GET {{host}}/api/auth/me
+Authorization: Bearer {{token}}

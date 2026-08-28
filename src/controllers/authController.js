@@ -31,4 +31,16 @@ async function verificarOtp(req, res) {
   res.status(200).json(dto);
 }
 
-module.exports = { registrar, enviarOtp, verificarOtp };
+async function login(req, res) {
+  const { email, password } = req.body;
+  const dto = await authService.login({ email, password });
+  res.status(200).json(dto);
+}
+
+async function perfil(req, res) {
+  // req.usuario lo dejó el middleware autenticar()
+  const dto = await authService.obtenerPerfil(req.usuario.id);
+  res.status(200).json(dto);
+}
+
+module.exports = { registrar, enviarOtp, verificarOtp, login, perfil };

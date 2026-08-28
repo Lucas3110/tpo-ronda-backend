@@ -12,6 +12,7 @@ const {
   toRegistroDto,
   toOtpEnviadoDto,
   toSesionDto,
+  toPerfilDto,
 } = require('../dtos/authDto');
 
 const PROPOSITOS = ['REGISTRO', 'LOGIN'];
@@ -252,9 +253,57 @@ async function verificarOtp({ email, codigo, proposito }) {
   return toSesionDto(actualizado, generarToken(actualizado));
 }
 
+// POST /api/auth/login
+async function login({ email, password }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+
+  // Mensaje genérico a propósito: no le contamos a un atacante
+  // si el email existe o si lo que falló fue la contraseña.
+  if (!usuario || !usuario.password_hash) {
+    throw ApiError.unauthorized(
+      'Email o contraseña incorrectos',
+      'CREDENCIALES_INVALIDAS'
+    );
+  }
+
+  const coincide = await bcrypt.compare(
+    String(password || ''),
+    usuario.password_hash
+  );
+  if (!coincide) {
+    throw ApiError.unauthorized(
+      'Email o contraseña incorrectos',
+      'CREDENCIALES_INVALIDAS'
+    );
+  }
+
+  if (!usuario.email_verificado) {
+    throw ApiError.forbidden(
+      'Tenés que validar tu email con el código antes de ingresar',
+      'EMAIL_NO_VERIFICADO'
+    );
+  }
+
+  return toSesionDto(usuario, generarToken(usuario));
+}
+
+// GET /api/auth/me
+async function obtenerPerfil(usuarioId) {
+  const usuario = await buscarUsuarioPorId(usuarioId);
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado', 'USUARIO_NO_ENCONTRADO');
+  }
+  return toPerfilDto(usuario);
+}
+
 module.exports = {
   registrar,
   solicitarOtp,
   verificarOtp,
+  login,
+  obtenerPerfil,
   buscarUsuarioPorId,
 };
