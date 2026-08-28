@@ -1,0 +1,652 @@
+{
+  "info": {
+    "_postman_id": "60675f25-c491-a622-9ada-3eecde9477ac",
+    "name": "Ronda API — TPO Punto 1",
+    "description": "Colección generada automáticamente por `npm run postman`.\n\nNo la edites a mano: los cambios se pisan. Si querés agregar un request, editá `scripts/generate-postman.js` y volvé a generar.\n\n**Cómo usarla:** importá también el environment `Ronda-Local`, seleccionalo arriba a la derecha, y corré los requests en orden. El token y el código OTP se guardan solos.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Salud",
+      "item": [
+        {
+          "name": "GET /health",
+          "id": "3500d01e-2804-0274-abcf-5283d2e1fc01",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "Chequea que la API esté levantada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "87bbc547-b4a4-5ecd-a91c-8a2de9266cf6"
+    },
+    {
+      "name": "1 · Registro y OTP",
+      "item": [
+        {
+          "name": "POST /auth/registro",
+          "id": "a2cc51b1-4cc7-28b5-4fdb-f64ff1fd6e1f",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registro"
+              ]
+            },
+            "description": "Crea la cuenta y envía el primer código OTP.\n\nGuarda automáticamente el código en la variable {{codigo}} (sólo funciona con OTP_EXPOSE_IN_RESPONSE=true).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"nombre\": \"Lucas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.codigoDesarrollo) pm.collectionVariables.set(\"codigo\", data.codigoDesarrollo);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/otp/enviar — reenviar (REGISTRO)",
+          "id": "90cd2bf7-0427-f17b-c0fc-c7d2dba0f020",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/enviar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "enviar"
+              ]
+            },
+            "description": "Reenvía el código de registro. Si lo mandás dos veces seguidas responde 429 OTP_COOLDOWN: es el anti-spam de 60 segundos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"proposito\": \"REGISTRO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.codigoDesarrollo) pm.collectionVariables.set(\"codigo\", data.codigoDesarrollo);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/otp/verificar — confirmar cuenta",
+          "id": "889ae908-1ccb-3a6e-8c7a-952028f5a739",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "verificar"
+              ]
+            },
+            "description": "Valida el código, marca el email como verificado y devuelve el token. Guarda el token en {{token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"{{codigo}}\",\n  \"proposito\": \"REGISTRO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "99f0b553-8e64-40df-bee7-444947dcbaef"
+    },
+    {
+      "name": "2 · Login",
+      "item": [
+        {
+          "name": "POST /auth/login — email y contraseña",
+          "id": "95bd35d0-bb06-218e-a869-4311a1137327",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login clásico. Guarda el token en {{token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/otp/enviar — login por código",
+          "id": "26e76a99-188e-a230-b2fb-b25fea7b99e1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/enviar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "enviar"
+              ]
+            },
+            "description": "Camino alternativo del enunciado: ingresar sin contraseña.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"proposito\": \"LOGIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.codigoDesarrollo) pm.collectionVariables.set(\"codigo\", data.codigoDesarrollo);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/otp/verificar — login por código",
+          "id": "ced66a11-f0f6-2c08-3f9a-2bb649947c10",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "verificar"
+              ]
+            },
+            "description": "Segundo paso del login por OTP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"{{codigo}}\",\n  \"proposito\": \"LOGIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "83b5ca41-9f1a-bc83-0b57-aae0fde75629"
+    },
+    {
+      "name": "3 · Sesión",
+      "item": [
+        {
+          "name": "GET /auth/me",
+          "id": "23c75848-6872-b3e9-2d7d-6ad090a102e6",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Ruta privada. Usa el {{token}} guardado por los requests anteriores. Es la que la app llama al abrirse para saber si la sesión sigue viva."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "b2c640a0-c1d7-a116-6ffc-8dd0e73cbb70"
+    },
+    {
+      "name": "4 · Casos de error (para la demo)",
+      "item": [
+        {
+          "name": "400 — código OTP incorrecto",
+          "id": "cf5bd918-d7ad-738f-2362-7df05f5a606e",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/otp/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "otp",
+                "verificar"
+              ]
+            },
+            "description": "Debe responder 400 con codigo OTP_INVALIDO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"000000\",\n  \"proposito\": \"REGISTRO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(400);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 — contraseña incorrecta",
+          "id": "bda39f11-3f44-dd09-8012-986ef81cfcc9",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Debe responder 401 con codigo CREDENCIALES_INVALIDAS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"contrasenia-mal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(401);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 — /me sin token",
+          "id": "81165101-cde7-1d91-adae-1486a73198dd",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Debe responder 401 con codigo TOKEN_FALTANTE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(401);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "409 — email ya registrado",
+          "id": "d91a2d0c-d01a-4b35-5737-bf7719dc0413",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registro"
+              ]
+            },
+            "description": "Correlo después de verificar la cuenta: debe dar 409 EMAIL_EN_USO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"nombre\": \"Lucas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(409);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "3cf40d4f-fc10-c4c7-5a27-4452fa4d6e0f"
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "lucas.prueba@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "secreto123",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "codigo",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
