@@ -3,6 +3,11 @@
 API REST en Node.js + Express + MySQL/MariaDB para la app **Ronda** (compra y venta
 entre personas). Cubre **los 6 puntos de la consigna**.
 
+> **¿Arrancando en el proyecto?** Leé [CONTEXTO.md](CONTEXTO.md): explica cómo funciona
+> el backend, las convenciones para agregar endpoints, el contrato completo de la API
+> con ejemplos reales, y cómo quedó armado el Punto 1 de la app Android. Está pensado
+> para pasárselo también a un asistente de IA como contexto.
+
 ---
 
 ## Puesta en marcha (5 comandos)
