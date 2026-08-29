@@ -3,6 +3,8 @@ const express = require('express');
 const authRoutes = require('./authRoutes');
 const usuarioRoutes = require('./usuarioRoutes');
 const zonaRoutes = require('./zonaRoutes');
+const publicacionRoutes = require('./publicacionRoutes');
+const categoriaRoutes = require('./categoriaRoutes');
 
 const router = express.Router();
 
@@ -14,5 +16,7 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);       // Punto 1
 router.use('/usuarios', usuarioRoutes); // Punto 2
 router.use('/zonas', zonaRoutes);       // Punto 2
+router.use('/publicaciones', publicacionRoutes); // Punto 3
+router.use('/categorias', categoriaRoutes);      // Punto 3
 
 module.exports = router;
