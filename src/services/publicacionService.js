@@ -234,7 +234,18 @@ async function listar(query, usuarioId = null) {
     [...parametrosConsulta, limite, offset]
   );
 
-  return toPaginaDto(filas.map(toPublicacionListadoDto), { pagina, limite, total });
+  const items = filas.map(toPublicacionListadoDto);
+
+  // Si hay sesion, marcamos cuales ya estan guardadas: la app necesita saber
+  // como pintar el corazon de cada tarjeta. Es una sola consulta extra para
+  // toda la pagina, no una por item.
+  if (usuarioId) {
+    const { idsFavoritos } = require('./favoritoService');
+    const favoritos = await idsFavoritos(usuarioId, items.map((i) => i.id));
+    for (const item of items) item.esFavorito = favoritos.has(item.id);
+  }
+
+  return toPaginaDto(items, { pagina, limite, total });
 }
 
 // GET /api/categorias
@@ -303,8 +314,15 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
 
   const esVendedor = usuarioId !== null && publicacion.vendedor_id === usuarioId;
 
+  let esFavorito = false;
+  if (usuarioId) {
+    const { idsFavoritos } = require('./favoritoService');
+    esFavorito = (await idsFavoritos(usuarioId, [id])).has(id);
+  }
+
   const extras = {
     esMia: esVendedor,
+    esFavorito,
     cantidadPreguntas: Number(contadores.cantidad_preguntas),
     // Cuantas ofertas hay solo le importa (y solo lo ve) el vendedor.
     cantidadOfertas: esVendedor ? Number(contadores.cantidad_ofertas) : null,
@@ -333,4 +351,7 @@ module.exports = {
   obtenerDetalle,
   SELECT_LISTADO,
   LIMITE_MAXIMO,
+  // Lo usa el Punto 6 para contar novedades de una busqueda guardada con
+  // exactamente las mismas condiciones que aplica el listado.
+  armarCondicionesDeFiltro: armarFiltros,
 };

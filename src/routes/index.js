@@ -7,6 +7,8 @@ const publicacionRoutes = require('./publicacionRoutes');
 const categoriaRoutes = require('./categoriaRoutes');
 const preguntaRoutes = require('./preguntaRoutes');
 const ofertaRoutes = require('./ofertaRoutes');
+const favoritoRoutes = require('./favoritoRoutes');
+const busquedaRoutes = require('./busquedaRoutes');
 
 const router = express.Router();
 
@@ -22,5 +24,7 @@ router.use('/publicaciones', publicacionRoutes); // Punto 3
 router.use('/categorias', categoriaRoutes);      // Punto 3
 router.use('/preguntas', preguntaRoutes);       // Punto 4
 router.use('/ofertas', ofertaRoutes);           // Punto 4
+router.use('/favoritos', favoritoRoutes);       // Punto 6
+router.use('/busquedas-guardadas', busquedaRoutes); // Punto 6
 
 module.exports = router;
