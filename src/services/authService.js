@@ -17,6 +17,17 @@ const {
 
 const PROPOSITOS = ['REGISTRO', 'LOGIN'];
 
+// Límites de los datos de alta. Están acá y no repartidos por el código para
+// que la app y la API puedan mostrar los mismos números.
+const EMAIL_MAX = 255; // igual que el VARCHAR(255) de la tabla
+const NOMBRE_MAX = 30;
+const PASSWORD_MIN = 6;
+const PASSWORD_MAX = 40;
+
+// Letras (con acentos y ñ), espacios, apóstrofos y guiones. Tiene que empezar
+// con una letra. La bandera u hace que \p{L} tome letras de cualquier idioma.
+const FORMATO_NOMBRE = /^\p{L}[\p{L} '’-]*$/u;
+
 // ---------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------
@@ -29,6 +40,58 @@ function validarEmail(email) {
   if (!formato.test(email)) {
     throw ApiError.badRequest('El email no tiene un formato válido', 'EMAIL_INVALIDO');
   }
+  if (email.length > EMAIL_MAX) {
+    throw ApiError.badRequest(
+      `El email no puede tener más de ${EMAIL_MAX} caracteres`,
+      'EMAIL_LARGO'
+    );
+  }
+}
+
+/**
+ * El nombre es opcional. Si viene, lo validamos y devolvemos limpio;
+ * si no, devolvemos null para que la columna quede en NULL.
+ */
+function validarNombre(nombre) {
+  if (nombre === undefined || nombre === null) return null;
+
+  const limpio = String(nombre).trim();
+  if (limpio === '') return null;
+
+  if (limpio.length > NOMBRE_MAX) {
+    throw ApiError.badRequest(
+      `El nombre no puede tener más de ${NOMBRE_MAX} caracteres`,
+      'NOMBRE_LARGO'
+    );
+  }
+  if (/\d/.test(limpio)) {
+    throw ApiError.badRequest('El nombre no puede contener números', 'NOMBRE_CON_NUMEROS');
+  }
+  if (!FORMATO_NOMBRE.test(limpio)) {
+    throw ApiError.badRequest(
+      'El nombre sólo puede tener letras, espacios, apóstrofos y guiones',
+      'NOMBRE_INVALIDO'
+    );
+  }
+  return limpio;
+}
+
+function validarPassword(password) {
+  const valor = String(password ?? '');
+
+  if (valor.length < PASSWORD_MIN) {
+    throw ApiError.badRequest(
+      `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres`,
+      'PASSWORD_CORTA'
+    );
+  }
+  if (valor.length > PASSWORD_MAX) {
+    throw ApiError.badRequest(
+      `La contraseña no puede tener más de ${PASSWORD_MAX} caracteres`,
+      'PASSWORD_LARGA'
+    );
+  }
+  return valor;
 }
 
 function validarProposito(proposito) {
@@ -126,12 +189,11 @@ async function registrar({ email, password, nombre }) {
   const mail = normalizarEmail(email);
   validarEmail(mail);
 
-  if (!password || String(password).length < 6) {
-    throw ApiError.badRequest(
-      'La contraseña debe tener al menos 6 caracteres',
-      'PASSWORD_CORTA'
-    );
-  }
+  // El orden importa: primero lo barato (validar), después lo caro (hashear
+  // y pegarle a la base). Y validamos igual aunque la app ya lo haga: nunca
+  // se confía en el cliente, que puede saltearse la pantalla con Postman.
+  const nombreLimpio = validarNombre(nombre);
+  validarPassword(password);
 
   const existente = await buscarUsuarioPorEmail(mail);
 
@@ -147,12 +209,12 @@ async function registrar({ email, password, nombre }) {
     // le mandamos un código nuevo. Evita cuentas zombie.
     await pool.query(
       'UPDATE usuarios SET password_hash = ?, nombre = COALESCE(?, nombre) WHERE id = ?',
-      [passwordHash, nombre || null, existente.id]
+      [passwordHash, nombreLimpio, existente.id]
     );
   } else {
     await pool.query(
       'INSERT INTO usuarios (email, password_hash, nombre) VALUES (?, ?, ?)',
-      [mail, passwordHash, nombre || null]
+      [mail, passwordHash, nombreLimpio]
     );
   }
 
