@@ -1,6 +1,8 @@
-// Router raíz: acá se van a ir enganchando los routers de cada punto del TPO.
+// Router raíz: acá se van enganchando los routers de cada punto de la consigna.
 const express = require('express');
 const authRoutes = require('./authRoutes');
+const usuarioRoutes = require('./usuarioRoutes');
+const zonaRoutes = require('./zonaRoutes');
 
 const router = express.Router();
 
@@ -9,9 +11,8 @@ router.get('/health', (req, res) => {
   res.json({ ok: true, servicio: 'ronda-api', hora: new Date().toISOString() });
 });
 
-router.use('/auth', authRoutes);
-
-// Punto 3 -> router.use('/publicaciones', publicacionesRoutes);
-// Punto 2 -> router.use('/usuarios', usuariosRoutes);
+router.use('/auth', authRoutes);       // Punto 1
+router.use('/usuarios', usuarioRoutes); // Punto 2
+router.use('/zonas', zonaRoutes);       // Punto 2
 
 module.exports = router;
