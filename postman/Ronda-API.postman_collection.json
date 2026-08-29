@@ -1,17 +1,17 @@
 {
   "info": {
     "_postman_id": "60675f25-c491-a622-9ada-3eecde9477ac",
-    "name": "Ronda API — TPO Punto 1",
-    "description": "Colección generada automáticamente por `npm run postman`.\n\nNo la edites a mano: los cambios se pisan. Si querés agregar un request, editá `scripts/generate-postman.js` y volvé a generar.\n\n**Cómo usarla:** importá también el environment `Ronda-Local`, seleccionalo arriba a la derecha, y corré los requests en orden. El token y el código OTP se guardan solos.",
+    "name": "Ronda API — TPO",
+    "description": "Colección generada automáticamente por `npm run postman`.\n\nNo la edites a mano: los cambios se pisan. Si querés agregar un request, editá `scripts/generate-postman.js` y volvé a generar.\n\n**Cómo usarla:** importá también el environment `Ronda Local`, seleccionalo arriba a la derecha, y corré las carpetas en orden. El token y los ids se guardan solos entre requests.\n\nPara tener datos con qué probar: `npm run db:seed`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Salud",
+      "name": "0 · Salud",
       "item": [
         {
           "name": "GET /health",
-          "id": "3500d01e-2804-0274-abcf-5283d2e1fc01",
+          "id": "2cea9eed-dc8d-942a-7bf0-242888d34452",
           "request": {
             "method": "GET",
             "header": [],
@@ -25,7 +25,7 @@
                 "health"
               ]
             },
-            "description": "Chequea que la API esté levantada."
+            "description": "Chequea que la API esté levantada y conectada a la base."
           },
           "event": [
             {
@@ -46,14 +46,14 @@
           ]
         }
       ],
-      "id": "87bbc547-b4a4-5ecd-a91c-8a2de9266cf6"
+      "id": "cb35112e-212a-23b3-d430-839c8276388e"
     },
     {
-      "name": "1 · Registro y OTP",
+      "name": "1 · Autenticación",
       "item": [
         {
           "name": "POST /auth/registro",
-          "id": "a2cc51b1-4cc7-28b5-4fdb-f64ff1fd6e1f",
+          "id": "c31a7fb3-9652-69da-f7ce-a9b09a90b671",
           "request": {
             "method": "POST",
             "header": [
@@ -73,7 +73,7 @@
                 "registro"
               ]
             },
-            "description": "Crea la cuenta y envía el primer código OTP.\n\nGuarda automáticamente el código en la variable {{codigo}} (sólo funciona con OTP_EXPOSE_IN_RESPONSE=true).",
+            "description": "Crea la cuenta y envía el primer código OTP.\n\nGuarda el código en {{codigo}} (necesita OTP_EXPOSE_IN_RESPONSE=true).",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"nombre\": \"Lucas\"\n}",
@@ -104,8 +104,8 @@
           ]
         },
         {
-          "name": "POST /auth/otp/enviar — reenviar (REGISTRO)",
-          "id": "90cd2bf7-0427-f17b-c0fc-c7d2dba0f020",
+          "name": "POST /auth/otp/enviar — reenviar",
+          "id": "bd2fa730-a335-5325-9f5a-cc0163795762",
           "request": {
             "method": "POST",
             "header": [
@@ -126,7 +126,7 @@
                 "enviar"
               ]
             },
-            "description": "Reenvía el código de registro. Si lo mandás dos veces seguidas responde 429 OTP_COOLDOWN: es el anti-spam de 60 segundos.",
+            "description": "Reenvía el código. Dos veces seguidas responde 429 OTP_COOLDOWN.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"proposito\": \"REGISTRO\"\n}",
@@ -158,7 +158,7 @@
         },
         {
           "name": "POST /auth/otp/verificar — confirmar cuenta",
-          "id": "889ae908-1ccb-3a6e-8c7a-952028f5a739",
+          "id": "926d9212-f807-c7e6-18e2-09acde8ea723",
           "request": {
             "method": "POST",
             "header": [
@@ -179,7 +179,7 @@
                 "verificar"
               ]
             },
-            "description": "Valida el código, marca el email como verificado y devuelve el token. Guarda el token en {{token}}.",
+            "description": "Valida el código, verifica el email y devuelve el token.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"{{codigo}}\",\n  \"proposito\": \"REGISTRO\"\n}",
@@ -203,21 +203,16 @@
                   "if (pm.response.code < 300) {",
                   "    const data = pm.response.json();",
                   "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
+                  "    if (data.usuario.id) pm.collectionVariables.set(\"usuarioId\", data.usuario.id);",
                   "}"
                 ]
               }
             }
           ]
-        }
-      ],
-      "id": "99f0b553-8e64-40df-bee7-444947dcbaef"
-    },
-    {
-      "name": "2 · Login",
-      "item": [
+        },
         {
-          "name": "POST /auth/login — email y contraseña",
-          "id": "95bd35d0-bb06-218e-a869-4311a1137327",
+          "name": "POST /auth/login",
+          "id": "edb91b27-a4f3-b080-94b0-d32cdb539292",
           "request": {
             "method": "POST",
             "header": [
@@ -237,7 +232,7 @@
                 "login"
               ]
             },
-            "description": "Login clásico. Guarda el token en {{token}}.",
+            "description": "Login con email y contraseña.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
@@ -261,127 +256,16 @@
                   "if (pm.response.code < 300) {",
                   "    const data = pm.response.json();",
                   "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
+                  "    if (data.usuario.id) pm.collectionVariables.set(\"usuarioId\", data.usuario.id);",
                   "}"
                 ]
               }
             }
           ]
         },
-        {
-          "name": "POST /auth/otp/enviar — login por código",
-          "id": "26e76a99-188e-a230-b2fb-b25fea7b99e1",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/otp/enviar",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "otp",
-                "enviar"
-              ]
-            },
-            "description": "Camino alternativo del enunciado: ingresar sin contraseña.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"proposito\": \"LOGIN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", function () {",
-                  "    pm.expect(pm.response.code).to.eql(200);",
-                  "});",
-                  "",
-                  "if (pm.response.code < 300) {",
-                  "    const data = pm.response.json();",
-                  "    if (data.codigoDesarrollo) pm.collectionVariables.set(\"codigo\", data.codigoDesarrollo);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /auth/otp/verificar — login por código",
-          "id": "ced66a11-f0f6-2c08-3f9a-2bb649947c10",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/otp/verificar",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "otp",
-                "verificar"
-              ]
-            },
-            "description": "Segundo paso del login por OTP.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"{{codigo}}\",\n  \"proposito\": \"LOGIN\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status 200\", function () {",
-                  "    pm.expect(pm.response.code).to.eql(200);",
-                  "});",
-                  "",
-                  "if (pm.response.code < 300) {",
-                  "    const data = pm.response.json();",
-                  "    if (data.token) pm.collectionVariables.set(\"token\", data.token);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        }
-      ],
-      "id": "83b5ca41-9f1a-bc83-0b57-aae0fde75629"
-    },
-    {
-      "name": "3 · Sesión",
-      "item": [
         {
           "name": "GET /auth/me",
-          "id": "23c75848-6872-b3e9-2d7d-6ad090a102e6",
+          "id": "f098aa6f-b496-5b69-8665-000a04c7ab27",
           "request": {
             "method": "GET",
             "header": [
@@ -401,7 +285,7 @@
                 "me"
               ]
             },
-            "description": "Ruta privada. Usa el {{token}} guardado por los requests anteriores. Es la que la app llama al abrirse para saber si la sesión sigue viva."
+            "description": "Ruta privada. La app la usa al abrirse para saber si la sesión sigue viva."
           },
           "event": [
             {
@@ -422,14 +306,1587 @@
           ]
         }
       ],
-      "id": "b2c640a0-c1d7-a116-6ffc-8dd0e73cbb70"
+      "id": "77dea7a9-56e9-63fe-21d2-87dd531ae215"
     },
     {
-      "name": "4 · Casos de error (para la demo)",
+      "name": "2 · Perfil y reputación",
+      "item": [
+        {
+          "name": "GET /zonas",
+          "id": "03d64ddf-7e56-54a5-9db3-64a8713f15ed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/zonas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "zonas"
+              ]
+            },
+            "description": "Catálogo de zonas. Público: la app lo necesita para el selector."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.zonas[0].id) pm.collectionVariables.set(\"zonaId\", data.zonas[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /usuarios/me",
+          "id": "5c440a48-b22a-d74f-4f81-7ca54986316e",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "me"
+              ]
+            },
+            "description": "Mis datos personales."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /usuarios/me",
+          "id": "f322f0af-1513-503a-ea1a-aa6c28aeb36f",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "me"
+              ]
+            },
+            "description": "Editar nombre, teléfono y zona. El email no se cambia acá: obligaría a verificarlo de nuevo con un OTP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Lucas Rodríguez\",\n  \"telefono\": \"11 5555-1234\",\n  \"zonaId\": \"{{zonaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /usuarios/:id/perfil",
+          "id": "6f1887b2-caaf-442d-8463-a2666dbbd19e",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{usuarioId}}/perfil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{usuarioId}}",
+                "perfil"
+              ]
+            },
+            "description": "Perfil público: reputación, antigüedad y publicaciones activas. No expone email ni teléfono."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /usuarios/:id/reputacion",
+          "id": "c7b6cd16-8ab9-7331-3cd2-0f5d129cac38",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{usuarioId}}/reputacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{usuarioId}}",
+                "reputacion"
+              ]
+            },
+            "description": "Sólo la reputación: promedio de estrellas y operaciones de cada lado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "d7959adc-cd42-d240-e1a1-d1b3ebdc818a"
+    },
+    {
+      "name": "3 · Explorar publicaciones",
+      "item": [
+        {
+          "name": "GET /categorias",
+          "id": "4e6a59d1-d8f1-e405-72bf-a54da459584c",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categorias",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categorias"
+              ]
+            },
+            "description": "Catálogo de categorías para el filtro y para el alta."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.categorias[0].id) pm.collectionVariables.set(\"categoriaId\", data.categorias[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones — listado",
+          "id": "cc2c63ed-5945-2291-2148-a53d05406982",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?pagina=1&limite=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "pagina",
+                  "value": "1"
+                },
+                {
+                  "key": "limite",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Listado paginado. Con token, cada ítem trae además esFavorito."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.items[0] && data.items[0].id) pm.collectionVariables.set(\"publicacionId\", data.items[0] && data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones — buscador",
+          "id": "5b6c71e8-063a-86da-2594-2193934c5326",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?q=notebook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "notebook"
+                }
+              ]
+            },
+            "description": "Texto libre sobre título y descripción."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones — filtros combinados",
+          "id": "06e26ede-652f-d89f-699c-990b97c91e67",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?categoriaId={{categoriaId}}&precioMin=0&precioMax=500000&estadoArticulo=NUEVO,COMO_NUEVO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "categoriaId",
+                  "value": "{{categoriaId}}"
+                },
+                {
+                  "key": "precioMin",
+                  "value": "0"
+                },
+                {
+                  "key": "precioMax",
+                  "value": "500000"
+                },
+                {
+                  "key": "estadoArticulo",
+                  "value": "NUEVO,COMO_NUEVO"
+                }
+              ]
+            },
+            "description": "Categoría + rango de precio + estado del artículo. estadoArticulo admite varios separados por coma."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones — ordenar",
+          "id": "7ef812de-5204-45bf-bdee-fb54c693e2ed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?orden=precio_asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "orden",
+                  "value": "precio_asc"
+                }
+              ]
+            },
+            "description": "orden: recientes | precio_asc | precio_desc | cercania."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones — cercanía",
+          "id": "06647702-2464-76fe-0363-3b4a5c71b218",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?orden=cercania",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "orden",
+                  "value": "cercania"
+                }
+              ]
+            },
+            "description": "Ordena por cercanía a la zona del usuario. Requiere sesión con zona configurada, si no responde 400 SIN_ZONA_CONFIGURADA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "538cea2b-db12-7900-0563-ea8d21f4ad2e"
+    },
+    {
+      "name": "4 · Detalle, preguntas y ofertas",
+      "item": [
+        {
+          "name": "GET /publicaciones/:id — detalle",
+          "id": "526456da-6483-ad43-bfee-cb08046b2dbc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}"
+              ]
+            },
+            "description": "Galería, descripción, vendedor con reputación, y las acciones disponibles según quién mira."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones/:id/preguntas",
+          "id": "7260d7a1-11d5-f5da-ea01-63ae57b1fe26",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/preguntas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "preguntas"
+              ]
+            },
+            "description": "Público."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /publicaciones/:id/preguntas",
+          "id": "f79561f2-0097-1415-3059-1cfefa39913a",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/preguntas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "preguntas"
+              ]
+            },
+            "description": "En tu propia publicación responde 403 ES_TU_PUBLICACION.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"texto\": \"¿Aceptás transferencia?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.pregunta.id) pm.collectionVariables.set(\"preguntaId\", data.pregunta.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /preguntas/:id/respuesta",
+          "id": "f8774282-e8b5-6a0c-acf5-9a6393676939",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/preguntas/{{preguntaId}}/respuesta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "preguntas",
+                "{{preguntaId}}",
+                "respuesta"
+              ]
+            },
+            "description": "Sólo el vendedor de esa publicación.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"respuesta\": \"Sí, sin problema.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /publicaciones/:id/ofertas",
+          "id": "b76ac15a-2284-63ea-3c8e-40fa60ce6186",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/ofertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "ofertas"
+              ]
+            },
+            "description": "Una oferta pendiente por persona: volver a ofertar actualiza el monto. No puede superar el precio publicado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monto\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.oferta.id) pm.collectionVariables.set(\"ofertaId\", data.oferta.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones/:id/ofertas",
+          "id": "19570e58-653d-1227-8858-9ae167e5d8ad",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/ofertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "ofertas"
+              ]
+            },
+            "description": "El vendedor ve todas; un interesado ve sólo las suyas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /ofertas/:id",
+          "id": "8c8e08a9-3889-ad44-ee8d-6ec93163d48f",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ofertas/{{ofertaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ofertas",
+                "{{ofertaId}}"
+              ]
+            },
+            "description": "Aceptar o rechazar. Sólo el vendedor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"ACEPTADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "5d57a27a-1c3f-5eaa-bcf1-868c5cafcefe"
+    },
+    {
+      "name": "5 · Publicar",
+      "item": [
+        {
+          "name": "PUT /publicaciones/borrador",
+          "id": "43cf5c1a-34bb-7b20-176b-bd03515790b7",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/borrador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "borrador"
+              ]
+            },
+            "description": "Se llama en cada paso del alta guiada. No valida: el borrador está incompleto.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paso\": 2,\n  \"datos\": {\n    \"titulo\": \"Mesa de comedor\",\n    \"precio\": 250000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones/borrador",
+          "id": "cd68d2f0-e583-7819-6fed-b2aa3fa73d41",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/borrador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "borrador"
+              ]
+            },
+            "description": "Recupera la carga interrumpida. Si no hay, devuelve borrador: null."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /publicaciones — crear",
+          "id": "9c38172d-98b4-9b29-1d03-cc4705476c8b",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ]
+            },
+            "description": "Publica el artículo y borra el borrador.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Mesa de comedor\",\n  \"descripcion\": \"Madera maciza, 6 sillas. Muy buen estado.\",\n  \"categoriaId\": \"{{categoriaId}}\",\n  \"precio\": 250000,\n  \"estadoArticulo\": \"USADO\",\n  \"zonaId\": \"{{zonaId}}\",\n  \"fotos\": [\n    \"https://picsum.photos/seed/mesa1/800/600\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.publicacion.id) pm.collectionVariables.set(\"miPublicacionId\", data.publicacion.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /publicaciones/:id — editar",
+          "id": "045f53ac-529b-5b5f-880d-e913133f2d57",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{miPublicacionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{miPublicacionId}}"
+              ]
+            },
+            "description": "No se puede editar una publicación vendida.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Mesa de comedor de roble\",\n  \"descripcion\": \"Madera maciza, 6 sillas. Muy buen estado.\",\n  \"categoriaId\": \"{{categoriaId}}\",\n  \"precio\": 230000,\n  \"estadoArticulo\": \"USADO\",\n  \"zonaId\": \"{{zonaId}}\",\n  \"fotos\": [\n    \"https://picsum.photos/seed/mesa1/800/600\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /publicaciones/:id/estado — pausar",
+          "id": "7f5f09c7-1621-fef3-6cce-8910a58cdd3a",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{miPublicacionId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{miPublicacionId}}",
+                "estado"
+              ]
+            },
+            "description": "ACTIVA -> PAUSADA -> ACTIVA. Una vendida ya no vuelve.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"PAUSADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /publicaciones/:id/estado — reactivar",
+          "id": "77cf2859-eae0-2a78-4ad6-6c1ef1556541",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{miPublicacionId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{miPublicacionId}}",
+                "estado"
+              ]
+            },
+            "description": "Vuelve al Home.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /publicaciones/mias",
+          "id": "ee41e01f-0998-1c61-b5c9-f026039d6364",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/mias",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "mias"
+              ]
+            },
+            "description": "Mis publicaciones con el resumen por estado. Filtro opcional ?estado=."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /publicaciones/:id",
+          "id": "4a8885d7-0747-c835-9cd7-da46b3fb0105",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{miPublicacionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{miPublicacionId}}"
+              ]
+            },
+            "description": "Elimina la publicación y, en cascada, sus fotos, preguntas y ofertas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "df115c33-297d-7d8a-f686-45010a2ecc3a"
+    },
+    {
+      "name": "6 · Favoritos y búsquedas guardadas",
+      "item": [
+        {
+          "name": "POST /publicaciones/:id/favorito",
+          "id": "4ea6fcf1-81f5-7c91-e8fa-aa5529248e67",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/favorito",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "favorito"
+              ]
+            },
+            "description": "Guarda el precio del momento, para poder detectar el cambio después."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /favoritos",
+          "id": "b1c12f61-3a28-37ca-8085-553bfc30193f",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/favoritos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "favoritos"
+              ]
+            },
+            "description": "Cada ítem trae novedad: cambioDePrecio, precioAnterior y bajoDePrecio."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /publicaciones/:id/favorito",
+          "id": "e6ee3e3e-836a-7862-1f14-76c30e21656e",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/favorito",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "favorito"
+              ]
+            },
+            "description": "Quitar de favoritos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /busquedas-guardadas",
+          "id": "cb57dd08-3e41-fafe-fa73-3a907294adf0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/busquedas-guardadas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "busquedas-guardadas"
+              ]
+            },
+            "description": "Guarda los filtros con un nombre. Sólo se guardan las claves conocidas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Celulares baratos\",\n  \"filtros\": {\n    \"categoriaId\": \"{{categoriaId}}\",\n    \"precioMax\": 400000,\n    \"orden\": \"precio_asc\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.busqueda.id) pm.collectionVariables.set(\"busquedaId\", data.busqueda.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /busquedas-guardadas",
+          "id": "44e07710-7071-6d14-3b86-5ceb643be100",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/busquedas-guardadas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "busquedas-guardadas"
+              ]
+            },
+            "description": "Con el contador de novedades de cada una y el total."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /busquedas-guardadas/:id/resultados",
+          "id": "f25176dc-a8a0-93e6-66bc-1868d7c3b19c",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/busquedas-guardadas/{{busquedaId}}/resultados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "busquedas-guardadas",
+                "{{busquedaId}}",
+                "resultados"
+              ]
+            },
+            "description": "Corre la búsqueda y marca que ya la viste: apaga el indicador."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /busquedas-guardadas/:id",
+          "id": "dbffa866-b927-50d7-447b-f47a3c011ed5",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/busquedas-guardadas/{{busquedaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "busquedas-guardadas",
+                "{{busquedaId}}"
+              ]
+            },
+            "description": "Borrar la búsqueda guardada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "id": "9c499616-8fd3-3096-c106-3189e564b2ad"
+    },
+    {
+      "name": "7 · Casos de error (para la demo)",
       "item": [
         {
           "name": "400 — código OTP incorrecto",
-          "id": "cf5bd918-d7ad-738f-2362-7df05f5a606e",
+          "id": "b3342490-2648-97a6-0953-9087d3472ac5",
           "request": {
             "method": "POST",
             "header": [
@@ -450,7 +1907,7 @@
                 "verificar"
               ]
             },
-            "description": "Debe responder 400 con codigo OTP_INVALIDO.",
+            "description": "codigo OTP_INVALIDO u OTP_INEXISTENTE.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"codigo\": \"000000\",\n  \"proposito\": \"REGISTRO\"\n}",
@@ -480,8 +1937,59 @@
           ]
         },
         {
+          "name": "400 — nombre con números",
+          "id": "6ff15faa-b174-6c09-b37a-b66da1ebde33",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registro"
+              ]
+            },
+            "description": "codigo NOMBRE_CON_NUMEROS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"otro@mail.com\",\n  \"password\": \"secreto123\",\n  \"nombre\": \"Lucas 3110\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(400);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "401 — contraseña incorrecta",
-          "id": "bda39f11-3f44-dd09-8012-986ef81cfcc9",
+          "id": "b1aae18c-80d5-8168-f5b7-c6931d18ad64",
           "request": {
             "method": "POST",
             "header": [
@@ -501,7 +2009,7 @@
                 "login"
               ]
             },
-            "description": "Debe responder 401 con codigo CREDENCIALES_INVALIDAS.",
+            "description": "codigo CREDENCIALES_INVALIDAS.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"contrasenia-mal\"\n}",
@@ -531,23 +2039,23 @@
           ]
         },
         {
-          "name": "401 — /me sin token",
-          "id": "81165101-cde7-1d91-adae-1486a73198dd",
+          "name": "401 — ruta privada sin token",
+          "id": "31d029ad-eeb7-0569-d1b1-0a9fd0849b6b",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
+              "raw": "{{baseUrl}}/api/usuarios/me",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
-                "auth",
+                "usuarios",
                 "me"
               ]
             },
-            "description": "Debe responder 401 con codigo TOKEN_FALTANTE."
+            "description": "codigo TOKEN_FALTANTE."
           },
           "event": [
             {
@@ -568,8 +2076,101 @@
           ]
         },
         {
+          "name": "403 — editar publicación ajena",
+          "id": "769346b1-3ab5-705d-3d34-591700cdcaf2",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/{{publicacionId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "{{publicacionId}}",
+                "estado"
+              ]
+            },
+            "description": "codigo NO_SOS_EL_VENDEDOR.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"PAUSADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(403);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 — publicación inexistente",
+          "id": "eab37a2b-3196-d33d-e87d-932c4855dd54",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones",
+                "999999"
+              ]
+            },
+            "description": "codigo PUBLICACION_NO_ENCONTRADA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(404);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "409 — email ya registrado",
-          "id": "d91a2d0c-d01a-4b35-5737-bf7719dc0413",
+          "id": "81eca67c-ba06-e5db-5a24-621417f8ecd6",
           "request": {
             "method": "POST",
             "header": [
@@ -589,7 +2190,7 @@
                 "registro"
               ]
             },
-            "description": "Correlo después de verificar la cuenta: debe dar 409 EMAIL_EN_USO.",
+            "description": "codigo EMAIL_EN_USO. Correlo después de verificar la cuenta.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"nombre\": \"Lucas\"\n}",
@@ -617,9 +2218,55 @@
               }
             }
           ]
+        },
+        {
+          "name": "400 — rango de precio invertido",
+          "id": "f7d86256-34f9-1cb4-4bc7-37aa7d5a8fe2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/publicaciones?precioMin=500000&precioMax=1000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "publicaciones"
+              ],
+              "query": [
+                {
+                  "key": "precioMin",
+                  "value": "500000"
+                },
+                {
+                  "key": "precioMax",
+                  "value": "1000"
+                }
+              ]
+            },
+            "description": "codigo RANGO_PRECIO_INVALIDO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(400);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ],
-      "id": "3cf40d4f-fc10-c4c7-5a27-4452fa4d6e0f"
+      "id": "b564b2be-6ece-644e-93fd-eb395bf5ab01"
     }
   ],
   "variable": [
@@ -645,6 +2292,46 @@
     },
     {
       "key": "codigo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "usuarioId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "zonaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categoriaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "publicacionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "miPublicacionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "preguntaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ofertaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "busquedaId",
       "value": "",
       "type": "string"
     }
