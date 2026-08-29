@@ -104,19 +104,21 @@ function validarProposito(proposito) {
   }
 }
 
+// El LEFT JOIN trae el nombre de la zona para que el DTO lo pueda incluir
+// sin tener que hacer una segunda consulta.
+const SELECT_USUARIO = `
+  SELECT u.*, z.nombre AS zona_nombre
+    FROM usuarios u
+    LEFT JOIN zonas z ON z.id = u.zona_id
+`;
+
 async function buscarUsuarioPorEmail(email) {
-  const [filas] = await pool.query(
-    'SELECT * FROM usuarios WHERE email = ? LIMIT 1',
-    [email]
-  );
+  const [filas] = await pool.query(`${SELECT_USUARIO} WHERE u.email = ? LIMIT 1`, [email]);
   return filas[0] || null;
 }
 
 async function buscarUsuarioPorId(id) {
-  const [filas] = await pool.query(
-    'SELECT * FROM usuarios WHERE id = ? LIMIT 1',
-    [id]
-  );
+  const [filas] = await pool.query(`${SELECT_USUARIO} WHERE u.id = ? LIMIT 1`, [id]);
   return filas[0] || null;
 }
 
