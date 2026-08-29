@@ -7,6 +7,7 @@ const {
   toReputacionDto,
   toZonaListadoDto,
 } = require('../dtos/usuarioDto');
+const { publicacionesActivasDe } = require('./publicacionService');
 
 const NOMBRE_MAX = 30;
 const TELEFONO_MAX = 30;
@@ -166,10 +167,14 @@ async function obtenerPerfilPublico(usuarioId) {
     throw ApiError.notFound('Usuario no encontrado', 'USUARIO_NO_ENCONTRADO');
   }
 
-  const reputacion = await obtenerReputacion(id);
+  // Reputación y publicaciones no dependen una de la otra, así que van
+  // en paralelo: el perfil tarda lo que tarda la más lenta, no la suma.
+  const [reputacion, publicaciones] = await Promise.all([
+    obtenerReputacion(id),
+    publicacionesActivasDe(id),
+  ]);
 
-  // Las publicaciones activas se suman en el Punto 3, cuando existe la tabla.
-  return { perfil: toPerfilPublicoDto(usuario, reputacion, []) };
+  return { perfil: toPerfilPublicoDto(usuario, reputacion, publicaciones) };
 }
 
 // GET /api/usuarios/:id/reputacion
