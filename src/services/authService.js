@@ -49,15 +49,16 @@ function validarEmail(email) {
 }
 
 /**
- * El nombre es opcional. Si viene, lo validamos y devolvemos limpio;
- * si no, devolvemos null para que la columna quede en NULL.
+ * El nombre es obligatorio: el perfil público del Punto 2 y las
+ * publicaciones necesitan mostrar de quién son.
+ * Devuelve el nombre ya recortado de espacios sobrantes.
  */
 function validarNombre(nombre) {
-  if (nombre === undefined || nombre === null) return null;
+  const limpio = String(nombre ?? '').trim();
 
-  const limpio = String(nombre).trim();
-  if (limpio === '') return null;
-
+  if (limpio === '') {
+    throw ApiError.badRequest('El nombre es obligatorio', 'NOMBRE_REQUERIDO');
+  }
   if (limpio.length > NOMBRE_MAX) {
     throw ApiError.badRequest(
       `El nombre no puede tener más de ${NOMBRE_MAX} caracteres`,
@@ -208,7 +209,7 @@ async function registrar({ email, password, nombre }) {
     // Se registró antes pero nunca confirmó: pisamos los datos y
     // le mandamos un código nuevo. Evita cuentas zombie.
     await pool.query(
-      'UPDATE usuarios SET password_hash = ?, nombre = COALESCE(?, nombre) WHERE id = ?',
+      'UPDATE usuarios SET password_hash = ?, nombre = ? WHERE id = ?',
       [passwordHash, nombreLimpio, existente.id]
     );
   } else {
