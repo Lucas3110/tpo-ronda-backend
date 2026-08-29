@@ -3,9 +3,11 @@ const { pool } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const {
   toPublicacionListadoDto,
+  toPublicacionDetalleDto,
   toPaginaDto,
   toCategoriaDto,
 } = require('../dtos/publicacionDto');
+const { toAccionesDto } = require('../dtos/interaccionDto');
 
 const LIMITE_POR_DEFECTO = 20;
 const LIMITE_MAXIMO = 50;
@@ -251,10 +253,84 @@ async function publicacionesActivasDe(vendedorId, limite = 10) {
   return filas.map(toPublicacionListadoDto);
 }
 
+// GET /api/publicaciones/:id
+// El detalle es publico, pero cambia segun quien mira: por eso recibe un
+// usuarioId que puede ser null (lo deja autenticarOpcional).
+async function obtenerDetalle(publicacionId, usuarioId = null) {
+  const id = Number(publicacionId);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw ApiError.badRequest('El id de publicación no es válido', 'ID_INVALIDO');
+  }
+
+  const [filas] = await pool.query(
+    `SELECT p.*, c.nombre AS categoria_nombre, z.nombre AS zona_nombre
+       FROM publicaciones p
+       JOIN categorias c ON c.id = p.categoria_id
+       JOIN zonas z      ON z.id = p.zona_id
+      WHERE p.id = ? LIMIT 1`,
+    [id]
+  );
+  const publicacion = filas[0];
+  if (!publicacion) {
+    throw ApiError.notFound('La publicación no existe', 'PUBLICACION_NO_ENCONTRADA');
+  }
+
+  // El vendedor con su reputacion, la galeria completa y el conteo de
+  // preguntas van juntos: son independientes entre si.
+  // Este require va adentro de la funcion a proposito: usuarioService ya
+  // requiere a este modulo arriba de todo (para las publicaciones activas
+  // del perfil publico). Pedirlo aca, recien al llamar, corta ese ciclo.
+  const { obtenerReputacion } = require('./usuarioService');
+  const [fotos, vendedorFilas, reputacion, contadores] = await Promise.all([
+    pool.query(
+      'SELECT id, url, orden FROM fotos_publicacion WHERE publicacion_id = ? ORDER BY orden, id',
+      [id]
+    ).then(([f]) => f),
+    pool.query(
+      `SELECT u.*, z.nombre AS zona_nombre
+         FROM usuarios u LEFT JOIN zonas z ON z.id = u.zona_id
+        WHERE u.id = ? LIMIT 1`,
+      [publicacion.vendedor_id]
+    ).then(([f]) => f),
+    obtenerReputacion(publicacion.vendedor_id),
+    pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM preguntas WHERE publicacion_id = ?) AS cantidad_preguntas,
+         (SELECT COUNT(*) FROM ofertas   WHERE publicacion_id = ?) AS cantidad_ofertas`,
+      [id, id]
+    ).then(([f]) => f[0]),
+  ]);
+
+  const esVendedor = usuarioId !== null && publicacion.vendedor_id === usuarioId;
+
+  const extras = {
+    esMia: esVendedor,
+    cantidadPreguntas: Number(contadores.cantidad_preguntas),
+    // Cuantas ofertas hay solo le importa (y solo lo ve) el vendedor.
+    cantidadOfertas: esVendedor ? Number(contadores.cantidad_ofertas) : null,
+    acciones: toAccionesDto({
+      esVendedor,
+      autenticado: usuarioId !== null,
+      publicacionActiva: publicacion.estado === 'ACTIVA',
+    }),
+  };
+
+  return {
+    publicacion: toPublicacionDetalleDto(
+      publicacion,
+      fotos,
+      vendedorFilas[0],
+      reputacion,
+      extras
+    ),
+  };
+}
+
 module.exports = {
   listar,
   listarCategorias,
   publicacionesActivasDe,
+  obtenerDetalle,
   SELECT_LISTADO,
   LIMITE_MAXIMO,
 };
