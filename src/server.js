@@ -22,9 +22,13 @@ async function iniciar() {
     process.exit(1);
   }
 
-  // 0.0.0.0 = escuchar en todas las interfaces.
-  // Es lo que permite que un celular en la misma WiFi llegue a la API.
-  app.listen(config.puerto, '0.0.0.0', () => {
+  // Sin especificar host, Node escucha en TODAS las interfaces y en IPv4 e IPv6
+  // a la vez. Las dos cosas importan:
+  //   - todas las interfaces -> un celular en la misma WiFi puede llegar.
+  //   - IPv4 + IPv6          -> en Windows, "localhost" resuelve primero a ::1
+  //                             (IPv6). Si sólo escucháramos en 0.0.0.0, algunos
+  //                             clientes darían ECONNREFUSED contra localhost.
+  app.listen(config.puerto, () => {
     console.log('');
     console.log(`API escuchando en el puerto ${config.puerto}`);
     console.log(`  PC              -> http://localhost:${config.puerto}/api/health`);
