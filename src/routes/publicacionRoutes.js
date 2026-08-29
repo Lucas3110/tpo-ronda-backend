@@ -3,6 +3,7 @@ const express = require('express');
 const controller = require('../controllers/publicacionController');
 const interacciones = require('../controllers/interaccionController');
 const publicar = require('../controllers/publicarController');
+const favoritos = require('../controllers/favoritoController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -30,6 +31,10 @@ router.get('/:id', autenticarOpcional, controller.detalle);
 router.put('/:id', autenticar, publicar.editar);
 router.patch('/:id/estado', autenticar, publicar.cambiarEstado);
 router.delete('/:id', autenticar, publicar.eliminar);
+
+// Punto 6: guardar o quitar de favoritos desde el listado o el detalle.
+router.post('/:id/favorito', autenticar, favoritos.marcar);
+router.delete('/:id/favorito', autenticar, favoritos.quitar);
 
 // Preguntas: leerlas es publico, hacerlas requiere sesion.
 router.get('/:id/preguntas', interacciones.listarPreguntas);
