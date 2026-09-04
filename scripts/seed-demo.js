@@ -14,6 +14,7 @@ const { pool } = require('../src/config/db');
 const PASSWORD_DEMO = 'demo1234';
 
 const USUARIOS = [
+  { email: 'admin@ronda.com', nombre: 'Admin Ronda', telefono: '11 0000-0000', zona: 'Palermo', rol: 'ADMIN' },
   { email: 'sofia.demo@ronda.app', nombre: 'Sofía Ramírez', telefono: '11 4444-1111', zona: 'Palermo' },
   { email: 'martin.demo@ronda.app', nombre: 'Martín Sosa', telefono: '11 4444-2222', zona: 'Quilmes' },
   { email: 'carla.demo@ronda.app', nombre: 'Carla Benítez', telefono: '11 4444-3333', zona: 'Villa Urquiza' },
@@ -36,7 +37,69 @@ const PUBLICACIONES = [
 
 // Fotos de ejemplo: un servicio de imágenes de relleno, para no tener que
 // subir archivos. Cada publicación usa una semilla distinta.
-function urlFoto(publicacion, indice) {
+function urlFoto(publicacion, indice, titulo) {
+  if (!titulo) return `https://picsum.photos/seed/ronda-${publicacion}-${indice}/800/600`;
+
+  // Ahora cada producto tiene un ARREGLO de fotos, separadas por coma.
+  // Podés agregar 2, 3 o las que quieras para cada uno.
+  const img = {
+    'iPhone': [
+      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1605236453806-6ff36851218e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1603798125914-7b5d27789248?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Notebook': [
+      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Bicicleta': [
+      'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=800&q=80'
+    ],
+    'PlayStation': [
+      'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1607853202273-797f1c22a38e?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Heladera': [
+      'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Taladro': [
+      'https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Guitarra': [
+      'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1550291652-6cb90046408b?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Sill': [
+      'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1540574163026-643ea20d25b5?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Cochecito': [
+      'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Harry Potter': [
+      'https://images.unsplash.com/photo-1622219809260-ce065361eb19?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Campera': [
+      'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1520975954732-57dd22299614?auto=format&fit=crop&w=800&q=80'
+    ],
+    'Monitor': [
+      'https://images.unsplash.com/photo-1527443154391-507e9dc6c5cc?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1586210579191-33b45e38fa3c?auto=format&fit=crop&w=800&q=80'
+    ]
+  };
+
+  for (let key in img) {
+    if (titulo.includes(key)) {
+      // Si tenemos la foto para ese indice, la devolvemos.
+      // Si el backend pide foto 2 y solo le dimos 1 link, repetimos el primero (o devolvemos uno al azar)
+      const arr = img[key];
+      return arr[indice] ? arr[indice] : arr[0];
+    }
+  }
+
   return `https://picsum.photos/seed/ronda-${publicacion}-${indice}/800/600`;
 }
 
@@ -76,7 +139,7 @@ async function main() {
     const [res] = await pool.query(
       `INSERT INTO usuarios (email, password_hash, nombre, telefono, zona_id, email_verificado)
        VALUES (?, ?, ?, ?, ?, 1)`,
-      [u.email, passwordHash, u.nombre, u.telefono, zonaId]
+      [u.email, passwordHash, u.nombre, u.telefono, zonaId, u.rol || 'USER']
     );
     idsUsuarios.push(res.insertId);
   }
@@ -91,12 +154,12 @@ async function main() {
          (vendedor_id, titulo, descripcion, categoria_id, precio, estado_articulo, zona_id, creado_en)
        VALUES (?, ?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
       [idsUsuarios[p.v], p.titulo, p.descripcion, categoriaId, p.precio, p.est, zonaId,
-       PUBLICACIONES.length - i]
+      PUBLICACIONES.length - i]
     );
     for (let k = 0; k < p.fotos; k++) {
       await pool.query(
         'INSERT INTO fotos_publicacion (publicacion_id, url, orden) VALUES (?, ?, ?)',
-        [res.insertId, urlFoto(res.insertId, k), k]
+        [res.insertId, urlFoto(res.insertId, k, p.titulo), k]
       );
       totalFotos++;
     }
@@ -118,7 +181,7 @@ async function main() {
      VALUES (?, ?, ?, 'VENDEDOR', 5, 'Todo perfecto, muy buena onda'),
             (?, ?, ?, 'VENDEDOR', 4, 'Llegó bien, tardó un poco en responder')`,
     [op1.insertId, idsUsuarios[1], idsUsuarios[0],
-     op2.insertId, idsUsuarios[2], idsUsuarios[0]]
+    op2.insertId, idsUsuarios[2], idsUsuarios[0]]
   );
   console.log('  2 operaciones con sus calificaciones');
 

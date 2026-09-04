@@ -33,11 +33,22 @@ async function autenticar(req, res, next) {
       throw ApiError.unauthorized('Token inválido', 'TOKEN_INVALIDO');
     }
 
-    req.usuario = { id: usuario.id, email: usuario.email };
+    req.usuario = { id: usuario.id, email: usuario.email, rol: usuario.rol };
     next();
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { autenticar };
+
+function requerirRol(rolEsperado) {
+  return (req, res, next) => {
+    if (!req.usuario || req.usuario.rol !== rolEsperado) {
+      return next(ApiError.forbidden('No tenés permisos para realizar esta acción', 'ACCESO_DENEGADO'));
+    }
+    next();
+  };
+}
+
+module.exports = { autenticar, requerirRol };
+
