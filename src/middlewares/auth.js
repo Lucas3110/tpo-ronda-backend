@@ -33,7 +33,7 @@ async function autenticar(req, res, next) {
       throw ApiError.unauthorized('Token inválido', 'TOKEN_INVALIDO');
     }
 
-    req.usuario = { id: usuario.id, email: usuario.email, rol: usuario.rol };
+    req.usuario = { id: usuario.id, email: usuario.email };
     next();
   } catch (error) {
     next(error);
@@ -50,5 +50,5 @@ function requerirRol(rolEsperado) {
   };
 }
 
-module.exports = { autenticar, requerirRol };
+module.exports = { autenticar };
 

@@ -124,7 +124,7 @@ async function buscarUsuarioPorId(id) {
 
 function generarToken(usuario) {
   return jwt.sign(
-    { sub: usuario.id, email: usuario.email, rol: usuario.rol },
+    { sub: usuario.id, email: usuario.email },
     config.jwt.secreto,
     { expiresIn: config.jwt.expiracion }
   );

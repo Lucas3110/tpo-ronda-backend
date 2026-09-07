@@ -31,7 +31,6 @@ function toUsuarioDto(usuario) {
     id: usuario.id,
     email: usuario.email,
     nombre: usuario.nombre,
-    rol: usuario.rol,
     telefono: usuario.telefono,
     zona: toZonaDto(usuario),
     emailVerificado: Boolean(usuario.email_verificado),
@@ -67,7 +66,6 @@ function toPerfilPublicoDto(usuario, reputacion, publicacionesActivas) {
   return {
     id: usuario.id,
     nombre: usuario.nombre,
-    rol: usuario.rol,
     zona: toZonaDto(usuario),
     miembroDesde: usuario.creado_en,
     // La "antigüedad en la plataforma" del enunciado, ya calculada para que
@@ -85,7 +83,6 @@ function toVendedorResumenDto(usuario, reputacion) {
   return {
     id: usuario.id,
     nombre: usuario.nombre,
-    rol: usuario.rol,
     zona: toZonaDto(usuario),
     reputacion: toReputacionDto(reputacion),
   };
