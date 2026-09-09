@@ -57,3 +57,4 @@ CREATE TABLE IF NOT EXISTS codigos_otp (
     ON DELETE CASCADE,
   INDEX idx_otp_busqueda (usuario_id, proposito, usado_en, id)
 ) ENGINE=InnoDB;
+
