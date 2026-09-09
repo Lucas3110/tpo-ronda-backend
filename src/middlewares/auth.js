@@ -41,11 +41,7 @@ async function autenticar(req, res, next) {
 }
 
 
-function requerirRol(rolEsperado) {
-  return (req, res, next) => {
-    if (!req.usuario || req.usuario.rol !== rolEsperado) {
-      return next(ApiError.forbidden('No tenés permisos para realizar esta acción', 'ACCESO_DENEGADO'));
-    }
+
     next();
   };
 }

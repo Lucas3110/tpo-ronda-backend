@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
   telefono         VARCHAR(30)   NULL,
   zona             VARCHAR(100)  NULL,
   email_verificado TINYINT(1)    NOT NULL DEFAULT 0,
-  rol              ENUM('USER', 'ADMIN') NOT NULL DEFAULT 'USER',
   creado_en        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   actualizado_en   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
                                  ON UPDATE CURRENT_TIMESTAMP,

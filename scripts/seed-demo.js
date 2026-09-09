@@ -170,11 +170,11 @@ async function main() {
   // aparezca vacía en el perfil público.
   const [op1] = await pool.query(
     'INSERT INTO operaciones (vendedor_id, comprador_id, monto) VALUES (?, ?, ?)',
-    [idsUsuarios[0], idsUsuarios[1], 120000]
+    [idsUsuarios[1], idsUsuarios[2], 120000]
   );
   const [op2] = await pool.query(
     'INSERT INTO operaciones (vendedor_id, comprador_id, monto) VALUES (?, ?, ?)',
-    [idsUsuarios[0], idsUsuarios[2], 55000]
+    [idsUsuarios[1], idsUsuarios[3], 55000]
   );
   await pool.query(
     `INSERT INTO calificaciones (operacion_id, calificador_id, calificado_id, rol_calificado, estrellas, comentario)
