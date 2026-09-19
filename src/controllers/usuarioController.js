@@ -6,9 +6,9 @@ async function misDatos(req, res) {
 }
 
 async function actualizarMisDatos(req, res) {
-  const { nombre, telefono, zonaId } = req.body;
+  const { nombre, telefono, zonaId, fotoUrl } = req.body;
   res.status(200).json(
-    await usuarioService.actualizarDatosPersonales(req.usuario.id, { nombre, telefono, zonaId })
+    await usuarioService.actualizarDatosPersonales(req.usuario.id, { nombre, telefono, zonaId, fotoUrl })
   );
 }
 

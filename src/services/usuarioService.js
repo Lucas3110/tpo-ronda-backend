@@ -14,6 +14,10 @@ const TELEFONO_MAX = 30;
 const FORMATO_NOMBRE = /^\p{L}[\p{L} '’-]*$/u;
 // Dígitos, espacios, guiones, paréntesis y un + inicial opcional.
 const FORMATO_TELEFONO = /^\+?[\d\s()-]{6,}$/;
+const FOTO_URL_MAX = 500;
+// http(s) para una imagen alojada, content:// y file:// para lo que devuelve
+// la galería de Android. Cualquier otro esquema se rechaza.
+const FORMATO_FOTO_URL = /^(https?:\/\/|content:\/\/|file:\/\/)\S+$/i;
 
 // Trae al usuario junto con el nombre de su zona, para armar el DTO de una.
 const SELECT_USUARIO = `
@@ -111,6 +115,37 @@ async function validarZona(zonaId) {
   return id;
 }
 
+/**
+ * La foto de perfil es opcional. Guardamos la URL, no el archivo.
+ *
+ * Se aceptan tres formas, porque la app Android puede mandar cualquiera:
+ *   - http(s)://...        una imagen alojada afuera
+ *   - content://...        la Uri que devuelve la galería del dispositivo
+ *   - file:///...          un archivo del almacenamiento interno
+ *
+ * Mandar cadena vacía o null borra la foto.
+ */
+function validarFotoUrl(fotoUrl) {
+  if (fotoUrl === undefined || fotoUrl === null) return null;
+
+  const limpio = String(fotoUrl).trim();
+  if (limpio === '') return null;
+
+  if (limpio.length > FOTO_URL_MAX) {
+    throw ApiError.badRequest(
+      `La foto de perfil no puede tener más de ${FOTO_URL_MAX} caracteres`,
+      'FOTO_URL_LARGA'
+    );
+  }
+  if (!FORMATO_FOTO_URL.test(limpio)) {
+    throw ApiError.badRequest(
+      'La foto de perfil tiene que ser una URL http(s), content:// o file://',
+      'FOTO_URL_INVALIDA'
+    );
+  }
+  return limpio;
+}
+
 // ---------------------------------------------------------------
 // Casos de uso
 // ---------------------------------------------------------------
@@ -127,14 +162,15 @@ async function obtenerDatosPersonales(usuarioId) {
 // PUT /api/usuarios/me
 // El email no se puede cambiar acá: cambiarlo obligaría a verificarlo de
 // nuevo con un OTP, así que sería otro caso de uso.
-async function actualizarDatosPersonales(usuarioId, { nombre, telefono, zonaId }) {
+async function actualizarDatosPersonales(usuarioId, { nombre, telefono, zonaId, fotoUrl }) {
   const nombreLimpio = validarNombre(nombre);
   const telefonoLimpio = validarTelefono(telefono);
   const zona = await validarZona(zonaId);
+  const foto = validarFotoUrl(fotoUrl);
 
   await pool.query(
-    'UPDATE usuarios SET nombre = ?, telefono = ?, zona_id = ? WHERE id = ?',
-    [nombreLimpio, telefonoLimpio, zona, usuarioId]
+    'UPDATE usuarios SET nombre = ?, telefono = ?, zona_id = ?, foto_url = ? WHERE id = ?',
+    [nombreLimpio, telefonoLimpio, zona, foto, usuarioId]
   );
 
   const usuario = await buscarUsuarioConZona(usuarioId);

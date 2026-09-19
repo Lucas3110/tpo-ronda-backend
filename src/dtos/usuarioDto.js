@@ -33,6 +33,7 @@ function toUsuarioDto(usuario) {
     nombre: usuario.nombre,
     telefono: usuario.telefono,
     zona: toZonaDto(usuario),
+    fotoUrl: usuario.foto_url ?? null,
     emailVerificado: Boolean(usuario.email_verificado),
     creadoEn: usuario.creado_en,
   };
@@ -67,6 +68,7 @@ function toPerfilPublicoDto(usuario, reputacion, publicacionesActivas) {
     id: usuario.id,
     nombre: usuario.nombre,
     zona: toZonaDto(usuario),
+    fotoUrl: usuario.foto_url ?? null,
     miembroDesde: usuario.creado_en,
     // La "antigüedad en la plataforma" del enunciado, ya calculada para que
     // la app no tenga que hacer cuentas con fechas.
@@ -84,6 +86,7 @@ function toVendedorResumenDto(usuario, reputacion) {
     id: usuario.id,
     nombre: usuario.nombre,
     zona: toZonaDto(usuario),
+    fotoUrl: usuario.foto_url ?? null,
     reputacion: toReputacionDto(reputacion),
   };
 }
