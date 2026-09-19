@@ -3,6 +3,7 @@ const os = require('node:os');
 const app = require('./app');
 const config = require('./config/env');
 const { probarConexion } = require('./config/db');
+const { verificarConfiguracion } = require('./services/mailer');
 
 function ipsDeRed() {
   return Object.values(os.networkInterfaces())
@@ -22,6 +23,16 @@ async function iniciar() {
     process.exit(1);
   }
 
+  // Punto 1: el OTP va por email. Si el SMTP está mal configurado conviene
+  // saberlo ahora y no cuando alguien intente registrarse en plena demo.
+  const mail = await verificarConfiguracion();
+  if (!mail.ok) {
+    console.error(`ERROR  MAIL_MODE=smtp pero no pude conectarme: ${mail.detalle}`);
+    console.error('       Revisá SMTP_USER / SMTP_PASS. Con Gmail hace falta una');
+    console.error('       contraseña de aplicación, no la contraseña de la cuenta.');
+    console.error('       Mientras tanto poné MAIL_MODE=console para seguir trabajando.');
+  }
+
   // Sin especificar host, Node escucha en TODAS las interfaces y en IPv4 e IPv6
   // a la vez. Las dos cosas importan:
   //   - todas las interfaces -> un celular en la misma WiFi puede llegar.
@@ -36,7 +47,10 @@ async function iniciar() {
     for (const ip of ipsDeRed()) {
       console.log(`  Celular (WiFi)  -> http://${ip}:${config.puerto}/api/health`);
     }
-    console.log(`  Modo de mail    -> ${config.mail.modo}`);
+    const detalleMail = mail.modo !== 'smtp'
+      ? ''
+      : mail.ok ? ` (OK · ${mail.detalle})` : ' (ERROR · ver arriba)';
+    console.log(`  Modo de mail    -> ${config.mail.modo}${detalleMail}`);
     console.log('');
   });
 }
