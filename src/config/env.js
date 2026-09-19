@@ -46,8 +46,12 @@ module.exports = {
     modo: leer('MAIL_MODE', 'console'), // 'console' | 'smtp'
     host: process.env.SMTP_HOST,
     puerto: Number(process.env.SMTP_PORT || 587),
-    usuario: process.env.SMTP_USER,
-    password: process.env.SMTP_PASS,
+    usuario: (process.env.SMTP_USER || '').trim(),
+    // Google muestra la contraseña de aplicación como "abcd efgh ijkl mnop",
+    // pero el SMTP la espera sin espacios: pegarla tal cual da un 535
+    // BadCredentials que no explica nada. Se los sacamos nosotros, que es lo
+    // que espera cualquiera que copie y pegue lo que Google le mostró.
+    password: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
     remitente: process.env.MAIL_FROM || 'Ronda <no-reply@ronda.app>',
   },
 };
