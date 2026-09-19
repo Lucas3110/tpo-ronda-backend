@@ -37,6 +37,11 @@ module.exports = {
     exponerEnRespuesta: leer('OTP_EXPOSE_IN_RESPONSE', 'false') === 'true',
   },
 
+  // Punto 7: cuanto vive una oferta antes de caducar sola.
+  oferta: {
+    horasDeVigencia: Number(leer('OFERTA_VIGENCIA_HORAS', 72)),
+  },
+
   mail: {
     modo: leer('MAIL_MODE', 'console'), // 'console' | 'smtp'
     host: process.env.SMTP_HOST,

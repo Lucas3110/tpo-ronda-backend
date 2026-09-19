@@ -15,12 +15,28 @@ function toPreguntaDto(fila) {
   };
 }
 
+const ESTADOS_OFERTA = {
+  PENDIENTE: 'Pendiente',
+  ACEPTADA: 'Aceptada',
+  RECHAZADA: 'Rechazada',
+  VENCIDA: 'Vencida',
+};
+
 function toOfertaDto(fila) {
   return {
     id: fila.id,
     monto: Number(fila.monto),
+    // Punto 7: "acompañado de un mensaje breve opcional".
+    mensaje: fila.mensaje ?? null,
     estado: fila.estado,
+    estadoTexto: ESTADOS_OFERTA[fila.estado] ?? fila.estado,
+    // Quién propuso este monto. En una contraoferta es el vendedor, y eso
+    // cambia de qué lado está el botón de aceptar.
+    origen: fila.origen ?? 'COMPRADOR',
+    esContraoferta: fila.contraoferta_de_id !== null && fila.contraoferta_de_id !== undefined,
+    contraofertaDeId: fila.contraoferta_de_id ?? null,
     respondidaEn: fila.respondida_en,
+    expiraEn: fila.expira_en ?? null,
     creadoEn: fila.creado_en,
     // Al vendedor le interesa saber quién ofertó; al que ofertó, no le
     // decimos quiénes son los demás (el service filtra qué ofertas ve cada uno).
@@ -28,6 +44,30 @@ function toOfertaDto(fila) {
       id: fila.usuario_id,
       nombre: fila.autor_nombre,
     },
+  };
+}
+
+/**
+ * Fila de "Mis ofertas" (Punto 7). Es la oferta más el contexto mínimo de la
+ * publicación, para que la pantalla se dibuje sin pedir el detalle de cada una.
+ */
+function toOfertaConPublicacionDto(fila) {
+  return {
+    ...toOfertaDto(fila),
+    publicacion: {
+      id: fila.publicacion_id,
+      titulo: fila.publicacion_titulo,
+      precio: Number(fila.publicacion_precio),
+      estado: fila.publicacion_estado,
+      fotoPrincipal: fila.foto_principal ?? null,
+    },
+    contraparte: {
+      id: fila.contraparte_id,
+      nombre: fila.contraparte_nombre,
+    },
+    // true = me toca responder a mí. Lo calcula el backend para que la app
+    // no tenga que cruzar origen, estado y quién soy en cada fila.
+    esperaMiRespuesta: Boolean(fila.espera_mi_respuesta),
   };
 }
 
@@ -71,4 +111,9 @@ function toAccionesDto({ esVendedor, autenticado, publicacionActiva }) {
   };
 }
 
-module.exports = { toPreguntaDto, toOfertaDto, toAccionesDto };
+module.exports = {
+  toPreguntaDto,
+  toOfertaDto,
+  toOfertaConPublicacionDto,
+  toAccionesDto,
+};
