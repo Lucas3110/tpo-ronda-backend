@@ -1,4 +1,5 @@
 // Punto 4: preguntas y ofertas.
+// Punto 7: contraofertas y la seccion "Mis ofertas".
 const interaccionService = require('../services/interaccionService');
 
 async function listarPreguntas(req, res) {
@@ -25,8 +26,22 @@ async function listarOfertas(req, res) {
 
 async function ofertar(req, res) {
   res.status(201).json(
-    await interaccionService.ofertar(req.params.id, req.usuario.id, req.body.monto)
+    await interaccionService.ofertar(
+      req.params.id, req.usuario.id, req.body.monto, req.body.mensaje
+    )
   );
+}
+
+async function contraofertar(req, res) {
+  res.status(201).json(
+    await interaccionService.contraofertar(
+      req.params.id, req.usuario.id, req.body.monto, req.body.mensaje
+    )
+  );
+}
+
+async function misOfertas(req, res) {
+  res.status(200).json(await interaccionService.misOfertas(req.usuario.id, req.query));
 }
 
 async function responderOferta(req, res) {
@@ -38,4 +53,5 @@ async function responderOferta(req, res) {
 module.exports = {
   listarPreguntas, preguntar, responder,
   listarOfertas, ofertar, responderOferta,
+  contraofertar, misOfertas,
 };
