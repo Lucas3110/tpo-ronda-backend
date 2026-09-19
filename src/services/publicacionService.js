@@ -4,6 +4,7 @@ const ApiError = require('../utils/ApiError');
 const {
   toPublicacionListadoDto,
   toPublicacionDetalleDto,
+  toEntregaDto,
   toPaginaDto,
   toCategoriaDto,
 } = require('../dtos/publicacionDto');
@@ -264,6 +265,26 @@ async function publicacionesActivasDe(vendedorId, limite = 10) {
   return filas.map(toPublicacionListadoDto);
 }
 
+/**
+ * ¿Esta persona le compró a esta publicación?
+ *
+ * Es la condición que habilita ver la dirección exacta (Punto 4) y, con ella,
+ * el botón "Cómo llegar" del Punto 8. Se resuelve con una consulta y no
+ * guardando una bandera, porque el permiso depende del estado de la oferta:
+ * si mañana se rechaza, deja de verla sin que haya que actualizar nada.
+ */
+async function compradorConOfertaAceptada(publicacionId, usuarioId) {
+  if (!usuarioId) return false;
+
+  const [filas] = await pool.query(
+    `SELECT 1 FROM ofertas
+      WHERE publicacion_id = ? AND usuario_id = ? AND estado = 'ACEPTADA'
+      LIMIT 1`,
+    [publicacionId, usuarioId]
+  );
+  return filas.length > 0;
+}
+
 // GET /api/publicaciones/:id
 // El detalle es publico, pero cambia segun quien mira: por eso recibe un
 // usuarioId que puede ser null (lo deja autenticarOpcional).
@@ -320,12 +341,22 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
     esFavorito = (await idsFavoritos(usuarioId, [id])).has(id);
   }
 
+  // Punto 4: "no se puede ver la dirección exacta hasta que no se efectúe la
+  // oferta del articulo". El vendedor la ve siempre porque es la que cargó él.
+  const tieneOfertaAceptada = await compradorConOfertaAceptada(id, usuarioId);
+  const puedeVerEntrega = esVendedor || tieneOfertaAceptada;
+
   const extras = {
     esMia: esVendedor,
     esFavorito,
     cantidadPreguntas: Number(contadores.cantidad_preguntas),
     // Cuantas ofertas hay solo le importa (y solo lo ve) el vendedor.
     cantidadOfertas: esVendedor ? Number(contadores.cantidad_ofertas) : null,
+    // null mientras no corresponda verla. La bandera aparte le sirve a la app
+    // para mostrar "vas a ver la direccion cuando acepten tu oferta" en vez
+    // de un hueco sin explicacion.
+    entrega: toEntregaDto(publicacion, puedeVerEntrega),
+    entregaVisible: puedeVerEntrega,
     acciones: toAccionesDto({
       esVendedor,
       autenticado: usuarioId !== null,
