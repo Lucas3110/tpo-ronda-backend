@@ -42,6 +42,38 @@ function toFotoDto(fila) {
   return { id: fila.id, url: fila.url, orden: fila.orden };
 }
 
+/**
+ * Punto de entrega (Puntos 4 y 8).
+ *
+ * Devuelve null cuando quien mira todavía no tiene derecho a verlo: el
+ * enunciado es explícito en que la dirección exacta se revela recién con la
+ * oferta aceptada. Que el filtro esté acá y no en la app importa — si lo
+ * resolviera el cliente, el dato ya habría viajado por la red y cualquiera
+ * podría leerlo con Postman.
+ *
+ * `urlMapa` viene armada desde el backend para que la app sólo tenga que
+ * lanzar un Intent con esa URI, sin repetir el formato de Google Maps.
+ */
+function toEntregaDto(fila, visible) {
+  if (!visible) return null;
+  if (!fila.direccion && fila.latitud === null) return null;
+
+  const latitud = fila.latitud === null ? null : Number(fila.latitud);
+  const longitud = fila.longitud === null ? null : Number(fila.longitud);
+
+  // Con coordenadas el pin cae exacto; si sólo hay dirección escrita, se la
+  // pasamos a Google Maps como texto y que la resuelva él.
+  const destino =
+    latitud !== null && longitud !== null ? `${latitud},${longitud}` : fila.direccion;
+
+  return {
+    direccion: fila.direccion ?? null,
+    latitud,
+    longitud,
+    urlMapa: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`,
+  };
+}
+
 function toPublicacionDetalleDto(fila, fotos, vendedor, reputacion, extras = {}) {
   return {
     id: fila.id,
@@ -83,6 +115,7 @@ module.exports = {
   toPublicacionListadoDto,
   toPublicacionDetalleDto,
   toFotoDto,
+  toEntregaDto,
   toPaginaDto,
   toCategoriaDto,
   etiquetaEstadoArticulo,

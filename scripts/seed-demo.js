@@ -105,6 +105,34 @@ async function idPorNombre(tabla, nombre) {
   return filas[0].id;
 }
 
+// Calles de ejemplo para el punto de entrega. Se reparten en orden entre las
+// publicaciones, así cada una tiene una dirección distinta.
+const CALLES = [
+  'Av. Santa Fe', 'Av. Corrientes', 'Av. Cabildo', 'Av. Rivadavia',
+  'Av. Callao', 'Av. Scalabrini Ortiz', 'Av. Juan B. Justo', 'Av. Triunvirato',
+  'Av. Directorio', 'Av. Nazca', 'Av. Alvarez Thomas', 'Av. Warnes',
+];
+
+/**
+ * Punto de entrega de una publicación (Puntos 4, 5 y 8).
+ *
+ * Las coordenadas salen de la zona con un desplazamiento chico y determinista,
+ * para que los pines no caigan todos en el mismo lugar del mapa pero sigan
+ * dentro del barrio. ~0.001 grados son unos 100 metros.
+ */
+async function puntoDeEntrega(zonaId, indice) {
+  const [filas] = await pool.query('SELECT latitud, longitud FROM zonas WHERE id = ?', [zonaId]);
+  const zona = filas[0];
+  const calle = CALLES[indice % CALLES.length];
+  const altura = 1000 + indice * 237; // cualquier número estable sirve
+
+  return {
+    direccion: `${calle} ${altura}`,
+    latitud: Number(zona.latitud) + (indice % 5) * 0.001 - 0.002,
+    longitud: Number(zona.longitud) + (indice % 3) * 0.001 - 0.001,
+  };
+}
+
 async function limpiar() {
   const emails = USUARIOS.map((u) => u.email);
   const marcadores = emails.map(() => '?').join(', ');
@@ -145,11 +173,14 @@ async function main() {
   for (const [i, p] of PUBLICACIONES.entries()) {
     const categoriaId = await idPorNombre('categorias', p.cat);
     const zonaId = await idPorNombre('zonas', p.zona);
+    const entrega = await puntoDeEntrega(zonaId, i);
     const [res] = await pool.query(
       `INSERT INTO publicaciones
-         (vendedor_id, titulo, descripcion, categoria_id, precio, estado_articulo, zona_id, creado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
+         (vendedor_id, titulo, descripcion, categoria_id, precio, estado_articulo, zona_id,
+          direccion, latitud, longitud, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
       [idsUsuarios[p.v], p.titulo, p.descripcion, categoriaId, p.precio, p.est, zonaId,
+       entrega.direccion, entrega.latitud, entrega.longitud,
        PUBLICACIONES.length - i]
     );
     for (let k = 0; k < p.fotos; k++) {

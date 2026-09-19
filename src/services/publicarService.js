@@ -10,6 +10,7 @@ const TITULO_MAX = 120;
 const DESCRIPCION_MAX = 5000;
 const PRECIO_MAX = 99999999.99; // lo que entra en DECIMAL(12,2)
 const FOTOS_MAX = 10;
+const DIRECCION_MAX = 255;
 
 const ESTADOS_ARTICULO = ['NUEVO', 'COMO_NUEVO', 'USADO'];
 const ESTADOS_PUBLICACION = ['ACTIVA', 'PAUSADA', 'VENDIDA'];
@@ -97,7 +98,59 @@ function validarFotos(fotos) {
   });
 }
 
+/**
+ * Dirección exacta de entrega (Punto 5). Es opcional: una publicación puede
+ * cargarse sin ella y completarla al editar.
+ *
+ * Ojo con la diferencia entre esto y la `zona`: la zona es pública y se ve en
+ * el listado; esta dirección sólo la ve el comprador después de que el
+ * vendedor le acepta la oferta (Punto 4).
+ */
+function validarDireccion(direccion) {
+  if (direccion === undefined || direccion === null) return null;
+
+  const limpio = String(direccion).trim();
+  if (limpio === '') return null;
+  if (limpio.length > DIRECCION_MAX) {
+    throw ApiError.badRequest(
+      `La dirección no puede tener más de ${DIRECCION_MAX} caracteres`,
+      'DIRECCION_LARGA'
+    );
+  }
+  return limpio;
+}
+
+/**
+ * Las coordenadas van de a par: o vienen las dos o no viene ninguna. Con una
+ * sola no se puede poner un pin en el mapa, así que es un error del cliente
+ * y no algo que convenga dejar pasar a medias.
+ */
+function validarCoordenadas(latitud, longitud) {
+  const faltaLat = latitud === undefined || latitud === null || latitud === '';
+  const faltaLng = longitud === undefined || longitud === null || longitud === '';
+
+  if (faltaLat && faltaLng) return { latitud: null, longitud: null };
+  if (faltaLat || faltaLng) {
+    throw ApiError.badRequest(
+      'Las coordenadas van completas: latitud y longitud',
+      'COORDENADAS_INCOMPLETAS'
+    );
+  }
+
+  const lat = Number(latitud);
+  const lng = Number(longitud);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw ApiError.badRequest('La latitud tiene que estar entre -90 y 90', 'LATITUD_INVALIDA');
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw ApiError.badRequest('La longitud tiene que estar entre -180 y 180', 'LONGITUD_INVALIDA');
+  }
+  return { latitud: lat, longitud: lng };
+}
+
 async function validarAlta(datos) {
+  const coordenadas = validarCoordenadas(datos.latitud, datos.longitud);
+
   return {
     titulo: validarTexto(datos.titulo, 'El título', TITULO_MAX, 'TITULO_REQUERIDO'),
     descripcion: validarTexto(
@@ -112,6 +165,9 @@ async function validarAlta(datos) {
       'zonas', datos.zonaId, 'La zona de entrega', 'ZONA_REQUERIDA'
     ),
     fotos: validarFotos(datos.fotos),
+    direccion: validarDireccion(datos.direccion),
+    latitud: coordenadas.latitud,
+    longitud: coordenadas.longitud,
   };
 }
 
@@ -158,9 +214,11 @@ async function crear(usuarioId, datos) {
 
     const [res] = await conexion.query(
       `INSERT INTO publicaciones
-         (vendedor_id, titulo, descripcion, categoria_id, precio, estado_articulo, zona_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [usuarioId, d.titulo, d.descripcion, d.categoriaId, d.precio, d.estadoArticulo, d.zonaId]
+         (vendedor_id, titulo, descripcion, categoria_id, precio, estado_articulo, zona_id,
+          direccion, latitud, longitud)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [usuarioId, d.titulo, d.descripcion, d.categoriaId, d.precio, d.estadoArticulo, d.zonaId,
+       d.direccion, d.latitud, d.longitud]
     );
     await guardarFotos(conexion, res.insertId, d.fotos);
 
@@ -194,9 +252,11 @@ async function editar(publicacionId, usuarioId, datos) {
     await conexion.query(
       `UPDATE publicaciones
           SET titulo = ?, descripcion = ?, categoria_id = ?, precio = ?,
-              estado_articulo = ?, zona_id = ?
+              estado_articulo = ?, zona_id = ?,
+              direccion = ?, latitud = ?, longitud = ?
         WHERE id = ?`,
-      [d.titulo, d.descripcion, d.categoriaId, d.precio, d.estadoArticulo, d.zonaId, publicacion.id]
+      [d.titulo, d.descripcion, d.categoriaId, d.precio, d.estadoArticulo, d.zonaId,
+       d.direccion, d.latitud, d.longitud, publicacion.id]
     );
     await guardarFotos(conexion, publicacion.id, d.fotos);
     await conexion.commit();
