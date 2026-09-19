@@ -9,7 +9,8 @@
     "db:setup": "node scripts/setup-db.js",
     "postman": "node scripts/generate-postman.js",
     "db:seed": "node scripts/seed-demo.js",
-    "test:api": "node scripts/regresion.js"
+    "test:api": "node scripts/regresion.js",
+    "test:mail": "node scripts/probar-mail.js"
   },
   "keywords": [
     "tpo",
