@@ -193,24 +193,47 @@ async function main() {
   }
   console.log(`  ${PUBLICACIONES.length} publicaciones con ${totalFotos} fotos`);
 
-  // Un par de operaciones con calificaciones, para que la reputación no
-  // aparezca vacía en el perfil público.
-  const [op1] = await pool.query(
-    'INSERT INTO operaciones (vendedor_id, comprador_id, monto) VALUES (?, ?, ?)',
-    [idsUsuarios[0], idsUsuarios[1], 120000]
+  // Operaciones concretadas, para que el perfil público tenga reputación y
+  // el historial del Punto 9 no arranque vacío.
+  //
+  // Se marcan como VENDIDAS las publicaciones que se usan, así los datos son
+  // coherentes: no puede haber una operación cerrada sobre un aviso activo.
+  const [vendidas] = await pool.query(
+    `SELECT id, precio FROM publicaciones WHERE vendedor_id = ? ORDER BY id LIMIT 3`,
+    [idsUsuarios[0]]
   );
-  const [op2] = await pool.query(
-    'INSERT INTO operaciones (vendedor_id, comprador_id, monto) VALUES (?, ?, ?)',
-    [idsUsuarios[0], idsUsuarios[2], 55000]
-  );
-  await pool.query(
-    `INSERT INTO calificaciones (operacion_id, calificador_id, calificado_id, rol_calificado, estrellas, comentario)
-     VALUES (?, ?, ?, 'VENDEDOR', 5, 'Todo perfecto, muy buena onda'),
-            (?, ?, ?, 'VENDEDOR', 4, 'Llegó bien, tardó un poco en responder')`,
-    [op1.insertId, idsUsuarios[1], idsUsuarios[0],
-     op2.insertId, idsUsuarios[2], idsUsuarios[0]]
-  );
-  console.log('  2 operaciones con sus calificaciones');
+
+  // La primera es vieja a propósito: ya pasó la ventana de 7 días para
+  // calificar, y sirve para probar que el backend la cierra.
+  const operaciones = [
+    { pub: vendidas[0], comprador: idsUsuarios[1], diasAtras: 20, estrellas: 5,
+      comentario: 'Todo perfecto, muy buena onda' },
+    { pub: vendidas[1], comprador: idsUsuarios[2], diasAtras: 3, estrellas: 4,
+      comentario: 'Llegó bien, tardó un poco en responder' },
+    // Sin calificar y dentro del plazo: la app la muestra como pendiente.
+    { pub: vendidas[2], comprador: idsUsuarios[1], diasAtras: 1, estrellas: null,
+      comentario: null },
+  ];
+
+  for (const op of operaciones) {
+    const [res] = await pool.query(
+      `INSERT INTO operaciones (publicacion_id, vendedor_id, comprador_id, monto, concretada_en)
+       VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
+      [op.pub.id, idsUsuarios[0], op.comprador, op.pub.precio, op.diasAtras]
+    );
+    await pool.query(`UPDATE publicaciones SET estado = 'VENDIDA' WHERE id = ?`, [op.pub.id]);
+
+    if (op.estrellas !== null) {
+      await pool.query(
+        `INSERT INTO calificaciones
+           (operacion_id, calificador_id, calificado_id, rol_calificado, estrellas, comentario, creado_en)
+         VALUES (?, ?, ?, 'VENDEDOR', ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
+        [res.insertId, op.comprador, idsUsuarios[0], op.estrellas, op.comentario,
+         Math.max(op.diasAtras - 1, 0)]
+      );
+    }
+  }
+  console.log(`  ${operaciones.length} operaciones (2 calificadas, 1 pendiente)`);
 
   await pool.end();
   console.log('');
