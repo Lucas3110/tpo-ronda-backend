@@ -34,9 +34,68 @@ const PUBLICACIONES = [
   { v: 2, titulo: 'Monitor Samsung 24" curvo', descripcion: 'Full HD, 75Hz. Sin píxeles muertos. Incluye cables.', cat: 'Computación', precio: 175000, est: 'USADO', zona: 'Villa Urquiza', fotos: 2 },
 ];
 
-// Fotos de ejemplo: un servicio de imágenes de relleno, para no tener que
-// subir archivos. Cada publicación usa una semilla distinta.
-function urlFoto(publicacion, indice) {
+// Fotos de ejemplo. Cada publicación tiene su galería real de Unsplash, para
+// que la demo se vea como una app de verdad y no con imágenes de relleno.
+//
+// La clave del diccionario es un fragmento del título: alcanza con que el
+// título lo contenga. Si una publicación pide más fotos de las que hay
+// cargadas, se repite la primera; y si el título no matchea ninguna clave,
+// cae en picsum, así agregar una publicación nueva nunca rompe el seed.
+const FOTOS_POR_PRODUCTO = {
+  iPhone: [
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1605236453806-6ff36851218e?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603798125914-7b5d27789248?auto=format&fit=crop&w=800&q=80',
+  ],
+  Notebook: [
+    'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=800&q=80',
+  ],
+  Bicicleta: [
+    'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?auto=format&fit=crop&w=800&q=80',
+  ],
+  PlayStation: [
+    'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1607853202273-797f1c22a38e?auto=format&fit=crop&w=800&q=80',
+  ],
+  Heladera: [
+    'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?auto=format&fit=crop&w=800&q=80',
+  ],
+  Taladro: [
+    'https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80',
+  ],
+  Guitarra: [
+    'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1550291652-6cb90046408b?auto=format&fit=crop&w=800&q=80',
+  ],
+  Sillón: [
+    'https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1540574163026-643ea20d25b5?auto=format&fit=crop&w=800&q=80',
+  ],
+  Cochecito: [
+    'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
+  ],
+  'Harry Potter': [
+    'https://images.unsplash.com/photo-1622219809260-ce065361eb19?auto=format&fit=crop&w=800&q=80',
+  ],
+  Campera: [
+    'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1520975954732-57dd22299614?auto=format&fit=crop&w=800&q=80',
+  ],
+  Monitor: [
+    'https://images.unsplash.com/photo-1527443154391-507e9dc6c5cc?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1586210579191-33b45e38fa3c?auto=format&fit=crop&w=800&q=80',
+  ],
+};
+
+function urlFoto(publicacion, indice, titulo) {
+  for (const [clave, urls] of Object.entries(FOTOS_POR_PRODUCTO)) {
+    if (titulo && titulo.includes(clave)) {
+      return urls[indice] ?? urls[0];
+    }
+  }
   return `https://picsum.photos/seed/ronda-${publicacion}-${indice}/800/600`;
 }
 
@@ -96,7 +155,7 @@ async function main() {
     for (let k = 0; k < p.fotos; k++) {
       await pool.query(
         'INSERT INTO fotos_publicacion (publicacion_id, url, orden) VALUES (?, ?, ?)',
-        [res.insertId, urlFoto(res.insertId, k), k]
+        [res.insertId, urlFoto(res.insertId, k, p.titulo), k]
       );
       totalFotos++;
     }
