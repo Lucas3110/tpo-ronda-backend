@@ -35,6 +35,7 @@ function toPublicacionListadoDto(fila) {
     fotoPrincipal: fila.foto_principal ?? null,
     cantidadFotos: Number(fila.cantidad_fotos ?? 0),
     creadoEn: fila.creado_en,
+    vendedorId: fila.vendedor_id,
   };
 }
 
