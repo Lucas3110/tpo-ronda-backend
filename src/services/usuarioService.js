@@ -160,8 +160,8 @@ async function obtenerDatosPersonales(usuarioId) {
 }
 
 // PUT /api/usuarios/me
-// El email no se puede cambiar acá: cambiarlo obligaría a verificarlo de
-// nuevo con un OTP, así que sería otro caso de uso.
+// El email no se cambia acá: obliga a verificarlo con un OTP, y eso vive en
+// POST /usuarios/me/email/solicitar y /confirmar (authService).
 async function actualizarDatosPersonales(usuarioId, { nombre, telefono, zonaId, fotoUrl }) {
   const nombreLimpio = validarNombre(nombre);
   const telefonoLimpio = validarTelefono(telefono);

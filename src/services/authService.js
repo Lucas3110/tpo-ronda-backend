@@ -15,6 +15,10 @@ const {
   toPerfilDto,
 } = require('../dtos/authDto');
 
+// Propositos que la app puede pedir por los endpoints publicos /auth/otp/*.
+// CAMBIO_EMAIL existe en la tabla pero NO va aca: solo se usa desde las rutas
+// autenticadas de /usuarios/me/email, asi nadie puede usar un codigo de cambio
+// de email para iniciar sesion.
 const PROPOSITOS = ['REGISTRO', 'LOGIN'];
 
 // Límites de los datos de alta. Están acá y no repartidos por el código para
@@ -133,7 +137,10 @@ function generarToken(usuario) {
 // ---------------------------------------------------------------
 // Emisión de OTP (se reusa en registro, reenvío y login por OTP)
 // ---------------------------------------------------------------
-async function crearYEnviarOtp(usuario, proposito) {
+//
+// Para el cambio de email el codigo NO va al email actual sino al nuevo, y hay
+// que recordar cual es hasta que se confirme: por eso destino y emailNuevo.
+async function crearYEnviarOtp(usuario, proposito, { destino = usuario.email, emailNuevo = null } = {}) {
   // 1) Anti-spam: no permitimos pedir otro código antes del cooldown.
   const [filasUltimo] = await pool.query(
     `SELECT TIMESTAMPDIFF(SECOND, creado_en, NOW()) AS segundos
@@ -166,13 +173,13 @@ async function crearYEnviarOtp(usuario, proposito) {
   const codigo = generarCodigo();
   const codigoHash = await hashearCodigo(codigo);
   await pool.query(
-    `INSERT INTO codigos_otp (usuario_id, codigo_hash, proposito, expira_en)
-     VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
-    [usuario.id, codigoHash, proposito, config.otp.minutosValidez]
+    `INSERT INTO codigos_otp (usuario_id, codigo_hash, proposito, email_nuevo, expira_en)
+     VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))`,
+    [usuario.id, codigoHash, proposito, emailNuevo, config.otp.minutosValidez]
   );
 
   // 4) Lo mandamos (consola o mail real según MAIL_MODE).
-  await enviarCodigoOtp(usuario.email, codigo, proposito);
+  await enviarCodigoOtp(destino, codigo, proposito);
 
   return codigo;
 }
@@ -181,6 +188,53 @@ async function crearYEnviarOtp(usuario, proposito) {
 // la app sin abrir el mail. En producción esto NUNCA se hace.
 function codigoParaDesarrollo(codigo) {
   return config.otp.exponerEnRespuesta ? codigo : undefined;
+}
+
+// Valida un código OTP y, si es correcto, lo consume (un solo uso).
+// Es el corazón compartido entre el registro/login y el cambio de email.
+// Devuelve la fila del código, que trae email_nuevo cuando corresponde.
+async function consumirOtp(usuario, proposito, codigo) {
+  // Traemos el último código sin usar, y le preguntamos a MySQL si sigue vigente.
+  const [filas] = await pool.query(
+    `SELECT id, codigo_hash, email_nuevo, intentos, (expira_en > NOW()) AS vigente
+       FROM codigos_otp
+      WHERE usuario_id = ? AND proposito = ? AND usado_en IS NULL
+      ORDER BY id DESC
+      LIMIT 1`,
+    [usuario.id, proposito]
+  );
+  const registro = filas[0];
+
+  if (!registro) {
+    throw ApiError.badRequest(
+      'No hay ningún código pendiente. Pedí uno nuevo.',
+      'OTP_INEXISTENTE'
+    );
+  }
+  if (!registro.vigente) {
+    throw ApiError.badRequest('El código venció. Pedí uno nuevo.', 'OTP_EXPIRADO');
+  }
+  if (registro.intentos >= config.otp.intentosMaximos) {
+    throw ApiError.tooManyRequests(
+      'Superaste la cantidad de intentos. Pedí un código nuevo.',
+      'OTP_BLOQUEADO'
+    );
+  }
+
+  const coincide = await compararCodigo(String(codigo), registro.codigo_hash);
+  if (!coincide) {
+    await pool.query(
+      'UPDATE codigos_otp SET intentos = intentos + 1 WHERE id = ?',
+      [registro.id]
+    );
+    throw ApiError.badRequest('El código es incorrecto', 'OTP_INVALIDO');
+  }
+
+  // Correcto: lo marcamos como usado (un solo uso).
+  await pool.query('UPDATE codigos_otp SET usado_en = NOW() WHERE id = ?', [
+    registro.id,
+  ]);
+  return registro;
 }
 
 // ---------------------------------------------------------------
@@ -268,46 +322,7 @@ async function verificarOtp({ email, codigo, proposito }) {
     );
   }
 
-  // Traemos el último código sin usar, y le preguntamos a MySQL si sigue vigente.
-  const [filas] = await pool.query(
-    `SELECT id, codigo_hash, intentos, (expira_en > NOW()) AS vigente
-       FROM codigos_otp
-      WHERE usuario_id = ? AND proposito = ? AND usado_en IS NULL
-      ORDER BY id DESC
-      LIMIT 1`,
-    [usuario.id, proposito]
-  );
-  const registro = filas[0];
-
-  if (!registro) {
-    throw ApiError.badRequest(
-      'No hay ningún código pendiente. Pedí uno nuevo.',
-      'OTP_INEXISTENTE'
-    );
-  }
-  if (!registro.vigente) {
-    throw ApiError.badRequest('El código venció. Pedí uno nuevo.', 'OTP_EXPIRADO');
-  }
-  if (registro.intentos >= config.otp.intentosMaximos) {
-    throw ApiError.tooManyRequests(
-      'Superaste la cantidad de intentos. Pedí un código nuevo.',
-      'OTP_BLOQUEADO'
-    );
-  }
-
-  const coincide = await compararCodigo(String(codigo), registro.codigo_hash);
-  if (!coincide) {
-    await pool.query(
-      'UPDATE codigos_otp SET intentos = intentos + 1 WHERE id = ?',
-      [registro.id]
-    );
-    throw ApiError.badRequest('El código es incorrecto', 'OTP_INVALIDO');
-  }
-
-  // Correcto: lo marcamos como usado (un solo uso) y verificamos el email.
-  await pool.query('UPDATE codigos_otp SET usado_en = NOW() WHERE id = ?', [
-    registro.id,
-  ]);
+  await consumirOtp(usuario, proposito, codigo);
   if (!usuario.email_verificado) {
     await pool.query('UPDATE usuarios SET email_verificado = 1 WHERE id = ?', [
       usuario.id,
@@ -364,11 +379,77 @@ async function obtenerPerfil(usuarioId) {
   return toPerfilDto(usuario);
 }
 
+// POST /api/usuarios/me/email/solicitar
+// Paso 1 del cambio de email: manda un código al email NUEVO. Todavía no se
+// cambia nada; si la persona se equivoca de dirección, simplemente no llega
+// a confirmar y la cuenta queda intacta.
+async function solicitarCambioEmail(usuarioId, { emailNuevo }) {
+  const mail = normalizarEmail(emailNuevo);
+  validarEmail(mail);
+
+  const usuario = await buscarUsuarioPorId(usuarioId);
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado', 'USUARIO_NO_ENCONTRADO');
+  }
+  if (mail === usuario.email) {
+    throw ApiError.badRequest('Ese ya es el email de tu cuenta', 'EMAIL_IGUAL_AL_ACTUAL');
+  }
+  // Cualquier cuenta con ese email lo ocupa, esté verificada o no: la
+  // restricción UNIQUE de la tabla no distingue, y pisar una cuenta ajena
+  // (aunque sea zombie) no es algo que se decida desde acá.
+  if (await buscarUsuarioPorEmail(mail)) {
+    throw ApiError.conflict('Ya existe una cuenta con ese email', 'EMAIL_EN_USO');
+  }
+
+  const codigo = await crearYEnviarOtp(usuario, 'CAMBIO_EMAIL', {
+    destino: mail,
+    emailNuevo: mail,
+  });
+  return toOtpEnviadoDto(codigoParaDesarrollo(codigo));
+}
+
+// POST /api/usuarios/me/email/confirmar
+// Paso 2: con el código correcto, el email de la cuenta pasa a ser el nuevo.
+async function confirmarCambioEmail(usuarioId, { codigo }) {
+  if (!codigo) {
+    throw ApiError.badRequest('Tenés que enviar el código', 'CODIGO_REQUERIDO');
+  }
+
+  const usuario = await buscarUsuarioPorId(usuarioId);
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado', 'USUARIO_NO_ENCONTRADO');
+  }
+
+  const registro = await consumirOtp(usuario, 'CAMBIO_EMAIL', codigo);
+  const emailNuevo = registro.email_nuevo;
+
+  try {
+    // Recibir el código prueba que la persona lee ese buzón, así que el email
+    // queda verificado.
+    await pool.query(
+      'UPDATE usuarios SET email = ?, email_verificado = 1 WHERE id = ?',
+      [emailNuevo, usuario.id]
+    );
+  } catch (error) {
+    // Alguien más pudo registrar ese email entre el pedido y la confirmación.
+    // La restricción UNIQUE es la que lo frena de verdad.
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw ApiError.conflict('Ya existe una cuenta con ese email', 'EMAIL_EN_USO');
+    }
+    throw error;
+  }
+
+  const actualizado = await buscarUsuarioPorId(usuario.id);
+  return { mensaje: 'Email actualizado', ...toPerfilDto(actualizado) };
+}
+
 module.exports = {
   registrar,
   solicitarOtp,
   verificarOtp,
   login,
   obtenerPerfil,
+  solicitarCambioEmail,
+  confirmarCambioEmail,
   buscarUsuarioPorId,
 };

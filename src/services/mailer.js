@@ -72,9 +72,20 @@ async function verificarConfiguracion() {
   }
 }
 
+const TITULOS_OTP = {
+  REGISTRO: 'Confirmá tu cuenta',
+  LOGIN: 'Ingresá a tu cuenta',
+  CAMBIO_EMAIL: 'Confirmá tu nuevo email',
+};
+
+const ASUNTOS_OTP = {
+  REGISTRO: 'Confirmá tu cuenta en Ronda',
+  LOGIN: 'Tu código para ingresar a Ronda',
+  CAMBIO_EMAIL: 'Confirmá tu nuevo email en Ronda',
+};
+
 function plantillaHtml(codigo, proposito) {
-  const titulo =
-    proposito === 'REGISTRO' ? 'Confirmá tu cuenta' : 'Ingresá a tu cuenta';
+  const titulo = TITULOS_OTP[proposito] || TITULOS_OTP.LOGIN;
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto">
       <h2 style="color:#1f2937">Ronda · ${titulo}</h2>
@@ -106,10 +117,7 @@ async function enviarCodigoOtp(destino, codigo, proposito) {
     await obtenerTransporte().sendMail({
       from: config.mail.remitente,
       to: destino,
-      subject:
-        proposito === 'REGISTRO'
-          ? 'Confirmá tu cuenta en Ronda'
-          : 'Tu código para ingresar a Ronda',
+      subject: ASUNTOS_OTP[proposito] || ASUNTOS_OTP.LOGIN,
       text: `Tu código es ${codigo}. Vence en ${config.otp.minutosValidez} minutos.`,
       html: plantillaHtml(codigo, proposito),
     });

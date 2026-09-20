@@ -14,6 +14,7 @@ publicar.
 - [Configurar la IP para tu máquina](#configurar-la-ip-para-tu-máquina)
 - [Qué endpoints hay ahora](#qué-endpoints-hay-ahora)
 - [Punto 2 · foto de perfil](#punto-2--foto-de-perfil)
+- [Punto 2 · cambio de email](#punto-2--cambio-de-email)
 - [Puntos 4, 5 y 8 · dirección de entrega](#puntos-4-5-y-8--dirección-de-entrega)
 - [Punto 7 · negociación](#punto-7--negociación)
 - [Punto 9 · historial y calificaciones](#punto-9--historial-y-calificaciones)
@@ -42,7 +43,7 @@ Los scripts disponibles:
 | `npm run dev` | Levanta la API con recarga automática |
 | `npm run db:setup` | Corre las migraciones de `sql/` en orden |
 | `npm run db:seed` | Carga 3 usuarios, 12 publicaciones y 3 operaciones |
-| `npm run test:api` | **100 checks** contra la API corriendo |
+| `npm run test:api` | **117 checks** contra la API corriendo |
 | `npm run test:mail` | Verifica el envío del OTP por email |
 | `npm run postman` | Regenera la colección de Postman |
 
@@ -132,9 +133,11 @@ distintas. Si dejás de conectar desde el celular, revisá `local.properties`.
 
 ## Qué endpoints hay ahora
 
-**41 rutas.** Las que ya conocías siguen igual. Estas son las nuevas:
+**43 rutas.** Las que ya conocías siguen igual. Estas son las nuevas:
 
 ```
+P2   POST   /api/usuarios/me/email/solicitar   { emailNuevo }
+P2   POST   /api/usuarios/me/email/confirmar   { codigo }
 P7   GET    /api/ofertas/mias                  ?tipo=ENVIADAS|RECIBIDAS
 P7   POST   /api/ofertas/:id/contraoferta      { monto, mensaje? }
 P9   GET    /api/operaciones                   ?tipo=COMPRA|VENTA&desde=&hasta=
@@ -179,6 +182,47 @@ Mandar `null` o cadena vacía borra la foto. Cualquier otro esquema devuelve
 `fotoUrl` viaja en **los tres DTOs de usuario**: el propio, el perfil público
 y el resumen del vendedor. O sea que la foto también aparece en el detalle de
 la publicación sin pedir nada extra.
+
+---
+
+## Punto 2 · cambio de email
+
+La consigna pide poder **editar el email**. No se puede hacer con un `UPDATE`
+directo: quien se equivoque de dirección (o ponga la de otra persona) pierde
+el acceso a la cuenta. Por eso es un cambio **en dos pasos, confirmado con un
+código OTP que llega al email nuevo**. `PUT /usuarios/me` ignora el campo
+`email`.
+
+```jsonc
+// 1) Pedir el cambio. Manda el código al email NUEVO; todavía no cambia nada.
+POST /api/usuarios/me/email/solicitar
+{ "emailNuevo": "nuevo@ejemplo.com" }
+// -> 200 { "mensaje": "Código enviado", "codigoDesarrollo": "482913" }
+
+// 2) Confirmar con el código recibido.
+POST /api/usuarios/me/email/confirmar
+{ "codigo": "482913" }
+// -> 200 { "mensaje": "Email actualizado", "usuario": { ... email nuevo ... } }
+```
+
+Las dos rutas exigen token. Cosas para tener en cuenta en la app:
+
+- **El token sigue valiendo.** El backend valida la sesión contra la base, no
+  contra el email que lleva el JWT. No hace falta volver a loguearse; sí hay
+  que actualizar el email guardado en el celular (el que precarga el login).
+- **El código dura lo de siempre** (10 minutos, 5 intentos, 60 segundos entre
+  reenvíos): es el mismo mecanismo del registro. Reenviar es volver a llamar a
+  `solicitar`.
+- **Un código de cambio de email no sirve para ingresar.** `/auth/otp/*` sólo
+  acepta `REGISTRO` y `LOGIN`; `CAMBIO_EMAIL` existe únicamente en estas rutas.
+- **No se pide la contraseña** para cambiar el email: la verificación es leer el
+  código en el buzón nuevo, con la sesión iniciada.
+- Al confirmar el email queda `emailVerificado: true`, porque recibir el
+  código prueba que la persona lee ese buzón.
+
+Códigos de error: `EMAIL_INVALIDO`, `EMAIL_LARGO`, `EMAIL_IGUAL_AL_ACTUAL`,
+`EMAIL_EN_USO`, `CODIGO_REQUERIDO`, `OTP_INEXISTENTE`, `OTP_EXPIRADO`,
+`OTP_INVALIDO`, `OTP_BLOQUEADO`, `OTP_COOLDOWN`.
 
 ---
 

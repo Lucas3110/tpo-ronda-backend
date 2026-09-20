@@ -163,11 +163,32 @@ const carpetas = [
       request({
         nombre: 'PUT /usuarios/me',
         descripcion:
-          'Editar nombre, teléfono y zona. El email no se cambia acá: obligaría a ' +
-          'verificarlo de nuevo con un OTP.',
+          'Editar nombre, teléfono, zona y foto. El email no se cambia acá: ' +
+          'se cambia en dos pasos con /usuarios/me/email/solicitar y /confirmar.',
         metodo: 'PUT',
         ruta: 'api/usuarios/me',
         body: { nombre: 'Lucas Rodríguez', telefono: '11 5555-1234', zonaId: '{{zonaId}}' },
+        auth: true,
+      }),
+      request({
+        nombre: 'POST /usuarios/me/email/solicitar',
+        descripcion:
+          'Paso 1 del cambio de email: manda un código al email NUEVO. Todavía no ' +
+          'cambia nada. En desarrollo el código vuelve en codigoDesarrollo.',
+        metodo: 'POST',
+        ruta: 'api/usuarios/me/email/solicitar',
+        body: { emailNuevo: 'lucas.nuevo@ejemplo.com' },
+        auth: true,
+        guardar: [{ variable: 'codigo', desde: 'data.codigoDesarrollo' }],
+      }),
+      request({
+        nombre: 'POST /usuarios/me/email/confirmar',
+        descripcion:
+          'Paso 2: con el código correcto el email de la cuenta pasa a ser el nuevo. ' +
+          'El token sigue valiendo.',
+        metodo: 'POST',
+        ruta: 'api/usuarios/me/email/confirmar',
+        body: { codigo: '{{codigo}}' },
         auth: true,
       }),
       request({
