@@ -29,7 +29,7 @@ const ORDENES = {
 // primera foto y cuántas tiene, todo en una sola consulta.
 const SELECT_LISTADO = `
   SELECT p.id, p.titulo, p.precio, p.estado_articulo, p.estado,
-         p.creado_en, p.categoria_id, p.zona_id,
+         p.creado_en, p.categoria_id, p.zona_id, p.vendedor_id,
          c.nombre AS categoria_nombre,
          z.nombre AS zona_nombre,
          (SELECT f.url FROM fotos_publicacion f
