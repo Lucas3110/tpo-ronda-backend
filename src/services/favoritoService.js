@@ -233,6 +233,70 @@ async function contarNovedades(busqueda) {
   return Number(filas[0].total);
 }
 
+// ---------------------------------------------------------------
+// Resumen legible de los filtros
+// ---------------------------------------------------------------
+
+const ETIQUETAS_ORDEN = {
+  precio_asc: 'Menor precio',
+  precio_desc: 'Mayor precio',
+  cercania: 'Más cerca',
+};
+
+const ETIQUETAS_ESTADO = {
+  NUEVO: 'Nuevo',
+  COMO_NUEVO: 'Como nuevo',
+  USADO: 'Usado',
+};
+
+function formatearPesos(valor) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return null;
+  return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
+/**
+ * Arma la línea que la app muestra debajo del nombre de la búsqueda.
+ *
+ * Se resuelve acá y no en la app por una razón concreta: el filtro guardado
+ * tiene el id de la categoría, no su nombre, y el backend ya tiene la tabla
+ * a mano. Si lo armara el cliente, tendría que pedir el catálogo entero sólo
+ * para traducir un número — o mostrar "categoriaId: 3", que es lo que
+ * terminaba viendo el usuario.
+ */
+function resumirFiltros(filtros, nombresDeCategoria) {
+  const partes = [];
+
+  if (filtros.q) partes.push(`«${filtros.q}»`);
+
+  const categoria = nombresDeCategoria.get(Number(filtros.categoriaId));
+  if (categoria) partes.push(categoria);
+
+  const desde = filtros.precioMin !== undefined ? formatearPesos(filtros.precioMin) : null;
+  const hasta = filtros.precioMax !== undefined ? formatearPesos(filtros.precioMax) : null;
+  if (desde && hasta) partes.push(`${desde} a ${hasta}`);
+  else if (desde) partes.push(`desde ${desde}`);
+  else if (hasta) partes.push(`hasta ${hasta}`);
+
+  if (filtros.estadoArticulo) {
+    const estados = String(filtros.estadoArticulo)
+      .split(',')
+      .map((e) => ETIQUETAS_ESTADO[e.trim().toUpperCase()])
+      .filter(Boolean);
+    if (estados.length > 0) partes.push(estados.join(' o '));
+  }
+
+  if (filtros.zonaId) partes.push('Solo mi zona');
+  if (ETIQUETAS_ORDEN[filtros.orden]) partes.push(ETIQUETAS_ORDEN[filtros.orden]);
+
+  return partes.join(' · ');
+}
+
+async function catalogoDeCategorias() {
+  const [filas] = await pool.query('SELECT id, nombre FROM categorias');
+  return new Map(filas.map((f) => [f.id, f.nombre]));
+}
+
 // GET /api/busquedas-guardadas
 async function listarBusquedas(usuarioId) {
   const [filas] = await pool.query(
@@ -240,16 +304,23 @@ async function listarBusquedas(usuarioId) {
     [usuarioId]
   );
 
+  const nombresDeCategoria = await catalogoDeCategorias();
+
   const busquedas = await Promise.all(
-    filas.map(async (fila) => ({
-      id: fila.id,
-      nombre: fila.nombre,
-      filtros: parsearJson(fila.filtros),
-      // El indicador de novedad de la sección.
-      novedades: await contarNovedades(fila),
-      ultimoVistoEn: fila.ultimo_visto_en,
-      creadoEn: fila.creado_en,
-    }))
+    filas.map(async (fila) => {
+      const filtros = parsearJson(fila.filtros);
+      return {
+        id: fila.id,
+        nombre: fila.nombre,
+        filtros,
+        // Los mismos filtros en una línea que se pueda leer.
+        resumen: resumirFiltros(filtros, nombresDeCategoria),
+        // El indicador de novedad de la sección.
+        novedades: await contarNovedades(fila),
+        ultimoVistoEn: fila.ultimo_visto_en,
+        creadoEn: fila.creado_en,
+      };
+    })
   );
 
   return {

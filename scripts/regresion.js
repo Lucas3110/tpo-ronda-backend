@@ -387,7 +387,18 @@ async function main() {
   const pendiente = r.body.operaciones[0];
 
   if (pendiente) {
-    r = await pedir('POST', `/operaciones/${pendiente.id}/calificacion`, {
+// El rango se prueba antes de calificar de verdad: despues, el 409 de
+    // "ya calificada" taparia el 400 y el check pasaria por el motivo equivocado.
+    for (const invalidas of [9, 0, 2.5]) {
+      r = await pedir('POST', `/operaciones/${pendiente.id}/calificacion`, {
+        bearer: martin.bearer, body: { estrellas: invalidas },
+      });
+      chequear(`estrellas ${invalidas} fuera de 1..5`,
+        r.status === 400 && r.body?.error?.codigo === 'ESTRELLAS_INVALIDAS',
+        '| ' + r.body?.error?.codigo);
+    }
+
+        r = await pedir('POST', `/operaciones/${pendiente.id}/calificacion`, {
       bearer: martin.bearer, body: { estrellas: 5, comentario: 'Todo diez' },
     });
     chequear('calificar', r.status === 201, '| ' + r.status);
@@ -404,10 +415,6 @@ async function main() {
     chequear('un tercero no califica', r.status === 403, '| ' + r.body?.error?.codigo);
   }
 
-  r = await pedir('POST', `/operaciones/${pendiente?.id ?? 1}/calificacion`, {
-    bearer: martin.bearer, body: { estrellas: 9 },
-  });
-  chequear('estrellas fuera de 1..5', r.status === 400 || r.status === 409, '| ' + r.body?.error?.codigo);
 
   r = await pedir('GET', `/usuarios/${sofia.id}/calificaciones`);
   chequear('calificaciones públicas', r.status === 200 && Array.isArray(r.body.calificaciones),
