@@ -145,6 +145,78 @@ async function main() {
   chequear('catálogo de zonas', r.status === 200 && r.body.zonas.length > 0, '| ' + r.body.zonas?.length);
 
   // -------------------------------------------------------------
+  seccion('Punto 2 · Cambio de email');
+  // Se hace con una cuenta descartable: si se usara la de Sofía, la próxima
+  // corrida ya no podría ingresar con sofia.demo@ronda.app.
+  const emailOriginal = `cambio.${Date.now()}@ronda.test`;
+  const emailCambiado = `cambiado.${Date.now()}@ronda.test`;
+  r = await pedir('POST', '/auth/registro', {
+    body: { email: emailOriginal, password: PASSWORD_DEMO, nombre: 'Prueba Cambio' },
+  });
+  const codigoRegistro = r.body?.codigoDesarrollo;
+
+  if (!codigoRegistro) {
+    // Sin OTP_EXPOSE_IN_RESPONSE=true no hay forma de leer el código desde acá.
+    console.log('  (se saltea: hace falta OTP_EXPOSE_IN_RESPONSE=true en el .env)');
+  } else {
+    r = await pedir('POST', '/auth/otp/verificar', {
+      body: { email: emailOriginal, codigo: codigoRegistro, proposito: 'REGISTRO' },
+    });
+    const cuenta = { bearer: `Bearer ${r.body?.token}` };
+    chequear('cuenta descartable lista', r.status === 200 && !!r.body?.token);
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { body: { emailNuevo: emailCambiado } });
+    chequear('pedir el cambio sin token responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { bearer: cuenta.bearer, body: { emailNuevo: 'no-es-un-mail' } });
+    chequear('email con formato inválido', r.status === 400 && r.body?.error?.codigo === 'EMAIL_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { bearer: cuenta.bearer, body: { emailNuevo: emailOriginal.toUpperCase() } });
+    chequear('el mismo email que ya tiene', r.status === 400 && r.body?.error?.codigo === 'EMAIL_IGUAL_AL_ACTUAL', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { bearer: cuenta.bearer, body: { emailNuevo: 'sofia.demo@ronda.app' } });
+    chequear('email de otra cuenta', r.status === 409 && r.body?.error?.codigo === 'EMAIL_EN_USO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { bearer: cuenta.bearer, body: { emailNuevo: emailCambiado } });
+    chequear('pedir el cambio', r.status === 200, '| ' + r.status);
+    const codigoCambio = r.body?.codigoDesarrollo;
+
+    r = await pedir('POST', '/usuarios/me/email/solicitar', { bearer: cuenta.bearer, body: { emailNuevo: emailCambiado } });
+    chequear('pedir otro código enseguida', r.status === 429 && r.body?.error?.codigo === 'OTP_COOLDOWN', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('GET', '/usuarios/me', { bearer: cuenta.bearer });
+    chequear('sin confirmar el email no cambia', r.body?.usuario?.email === emailOriginal);
+
+    r = await pedir('POST', '/usuarios/me/email/confirmar', { bearer: cuenta.bearer, body: {} });
+    chequear('confirmar sin código', r.status === 400 && r.body?.error?.codigo === 'CODIGO_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+    const incorrecto = codigoCambio === '000000' ? '111111' : '000000';
+    r = await pedir('POST', '/usuarios/me/email/confirmar', { bearer: cuenta.bearer, body: { codigo: incorrecto } });
+    chequear('código incorrecto', r.status === 400 && r.body?.error?.codigo === 'OTP_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/otp/verificar', {
+      body: { email: emailOriginal, codigo: codigoCambio, proposito: 'CAMBIO_EMAIL' },
+    });
+    chequear('el código de cambio no sirve para ingresar', r.status === 400 && r.body?.error?.codigo === 'PROPOSITO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/confirmar', { bearer: cuenta.bearer, body: { codigo: codigoCambio } });
+    chequear('confirmar el cambio', r.status === 200 && r.body?.usuario?.email === emailCambiado, '| ' + r.body?.usuario?.email);
+    chequear('el email sigue verificado', r.body?.usuario?.emailVerificado === true);
+
+    r = await pedir('GET', '/usuarios/me', { bearer: cuenta.bearer });
+    chequear('la sesión sigue andando con el mismo token', r.status === 200 && r.body.usuario.email === emailCambiado);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailCambiado, password: PASSWORD_DEMO } });
+    chequear('se ingresa con el email nuevo', r.status === 200);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailOriginal, password: PASSWORD_DEMO } });
+    chequear('con el email viejo ya no', r.status === 401, '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/usuarios/me/email/confirmar', { bearer: cuenta.bearer, body: { codigo: codigoCambio } });
+    chequear('el código no se puede reusar', r.status === 400 && r.body?.error?.codigo === 'OTP_INEXISTENTE', '| ' + r.body?.error?.codigo);
+  }
+
+  // -------------------------------------------------------------
   seccion('Punto 3 · Home');
   r = await pedir('GET', '/publicaciones');
   chequear('listado público', r.status === 200 && Array.isArray(r.body.items));

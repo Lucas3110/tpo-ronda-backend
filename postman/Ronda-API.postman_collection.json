@@ -416,10 +416,125 @@
                 "me"
               ]
             },
-            "description": "Editar nombre, teléfono y zona. El email no se cambia acá: obligaría a verificarlo de nuevo con un OTP.",
+            "description": "Editar nombre, teléfono, zona y foto. El email no se cambia acá: se cambia en dos pasos con /usuarios/me/email/solicitar y /confirmar.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Lucas Rodríguez\",\n  \"telefono\": \"11 5555-1234\",\n  \"zonaId\": \"{{zonaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /usuarios/me/email/solicitar",
+          "id": "8fa363eb-e916-b40d-6048-f96fe2a6caf0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/me/email/solicitar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "me",
+                "email",
+                "solicitar"
+              ]
+            },
+            "description": "Paso 1 del cambio de email: manda un código al email NUEVO. Todavía no cambia nada. En desarrollo el código vuelve en codigoDesarrollo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailNuevo\": \"lucas.nuevo@ejemplo.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 300) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.codigoDesarrollo) pm.collectionVariables.set(\"codigo\", data.codigoDesarrollo);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /usuarios/me/email/confirmar",
+          "id": "710f67f8-fedc-6bcc-3ef4-f7f149740afd",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/me/email/confirmar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "me",
+                "email",
+                "confirmar"
+              ]
+            },
+            "description": "Paso 2: con el código correcto el email de la cuenta pasa a ser el nuevo. El token sigue valiendo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigo}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -10,6 +10,10 @@ const router = express.Router();
 router.get('/me', autenticar, controller.misDatos);
 router.put('/me', autenticar, controller.actualizarMisDatos);
 
+// Cambio de email: se pide un código (llega al email nuevo) y se confirma.
+router.post('/me/email/solicitar', autenticar, controller.solicitarCambioEmail);
+router.post('/me/email/confirmar', autenticar, controller.confirmarCambioEmail);
+
 // --- Públicas: lo que se consulta antes de operar con alguien ---
 // Van después de /me para que "me" no se confunda con un :id.
 router.get('/:id/perfil', controller.perfilPublico);
