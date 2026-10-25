@@ -108,6 +108,107 @@ async function main() {
   chequear('envío de OTP', r.status === 200 || r.status === 429, '| ' + r.status);
 
   // -------------------------------------------------------------
+  seccion('Punto 1 · Registro en dos pasos');
+  // El enunciado de Hallado pide este orden: email -> código -> nombre y
+  // contraseña. La cuenta existe sin contraseña mientras el email no esté
+  // confirmado, así que hay que verificar que en ese estado no se pueda entrar.
+  const emailDosPasos = 'dospasos.' + Date.now() + '@ronda.test';
+
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: 'no-es-un-mail' } });
+  chequear('solicitar con email inválido', r.status === 400 && r.body?.error?.codigo === 'EMAIL_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: 'sofia.demo@ronda.app' } });
+  chequear('solicitar con email ya registrado', r.status === 409 && r.body?.error?.codigo === 'EMAIL_EN_USO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: emailDosPasos } });
+  chequear('solicitar el registro', r.status === 201, '| ' + r.status);
+  const codigoDosPasos = r.body?.codigoDesarrollo;
+
+  if (!codigoDosPasos) {
+    console.log('  (se saltea el resto: hace falta OTP_EXPOSE_IN_RESPONSE=true en el .env)');
+  } else {
+    r = await pedir('POST', '/auth/login', { body: { email: emailDosPasos, password: PASSWORD_DEMO } });
+    chequear('sin confirmar no se puede ingresar', r.status === 401 && r.body?.error?.codigo === 'CREDENCIALES_INVALIDAS', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailDosPasos, codigo: codigoDosPasos, nombre: 'Juan 123', password: PASSWORD_DEMO } });
+    chequear('nombre con números rechazado', r.status === 400 && r.body?.error?.codigo === 'NOMBRE_CON_NUMEROS', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailDosPasos, codigo: codigoDosPasos, nombre: 'Juan Prueba', password: 'abc' } });
+    chequear('contraseña corta rechazada', r.status === 400 && r.body?.error?.codigo === 'PASSWORD_CORTA', '| ' + r.body?.error?.codigo);
+
+    // Los dos rechazos de arriba no tienen que haber gastado el código: si el
+    // nombre o la contraseña están mal, no es culpa del código.
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailDosPasos, nombre: 'Juan Prueba', password: PASSWORD_DEMO } });
+    chequear('confirmar sin código', r.status === 400 && r.body?.error?.codigo === 'CODIGO_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailDosPasos, codigo: codigoDosPasos, nombre: 'Juan Prueba', password: PASSWORD_DEMO } });
+    chequear('confirmar el registro devuelve sesión', r.status === 200 && !!r.body?.token, '| ' + r.status);
+    chequear('quedó el nombre que se mandó', r.body?.usuario?.nombre === 'Juan Prueba', '| ' + r.body?.usuario?.nombre);
+    chequear('el email quedó verificado', r.body?.usuario?.emailVerificado === true);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailDosPasos, codigo: codigoDosPasos, nombre: 'Juan Prueba', password: PASSWORD_DEMO } });
+    chequear('el código no se puede reusar', r.status === 400 && r.body?.error?.codigo === 'OTP_INEXISTENTE', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailDosPasos, password: PASSWORD_DEMO } });
+    chequear('ahora sí se puede ingresar', r.status === 200 && !!r.body?.token, '| ' + r.status);
+  }
+
+  // -------------------------------------------------------------
+  seccion('Punto 1 · Recupero de contraseña');
+  // Cuenta descartable: cambiarle la contraseña a Sofía dejaría al resto
+  // del script sin poder ingresar.
+  const emailRecupero = 'recupero.' + Date.now() + '@ronda.test';
+  const passwordNueva = 'nueva-clave-123';
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: emailRecupero } });
+  const codigoAlta = r.body?.codigoDesarrollo;
+
+  if (!codigoAlta) {
+    console.log('  (se saltea: hace falta OTP_EXPOSE_IN_RESPONSE=true en el .env)');
+  } else {
+    await pedir('POST', '/auth/registro/confirmar', { body: { email: emailRecupero, codigo: codigoAlta, nombre: 'Prueba Recupero', password: PASSWORD_DEMO } });
+
+    // Un email que no existe tiene que contestar igual que uno que sí: si no,
+    // el endpoint sirve para averiguar quién tiene cuenta.
+    r = await pedir('POST', '/auth/password/recuperar', { body: { email: 'fantasma.' + Date.now() + '@ronda.test' } });
+    chequear('email inexistente no se delata', r.status === 200 && r.body?.codigoDesarrollo === undefined, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/password/recuperar', { body: { email: 'no-es-un-mail' } });
+    chequear('email con formato inválido', r.status === 400 && r.body?.error?.codigo === 'EMAIL_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/password/recuperar', { body: { email: emailRecupero } });
+    chequear('pedir el código de recupero', r.status === 200, '| ' + r.status);
+    const codigoRecupero = r.body?.codigoDesarrollo;
+
+    r = await pedir('POST', '/auth/password/recuperar', { body: { email: emailRecupero } });
+    chequear('reenviar enseguida cae en el cooldown', r.status === 429 && r.body?.error?.codigo === 'OTP_COOLDOWN', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/otp/verificar', { body: { email: emailRecupero, codigo: codigoRecupero, proposito: 'RECUPERO' } });
+    chequear('el código de recupero no sirve para ingresar', r.status === 400 && r.body?.error?.codigo === 'PROPOSITO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    const recuperoMal = codigoRecupero === '000000' ? '111111' : '000000';
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecupero, codigo: recuperoMal, password: passwordNueva } });
+    chequear('código incorrecto', r.status === 400 && r.body?.error?.codigo === 'OTP_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecupero, codigo: codigoRecupero, password: 'abc' } });
+    chequear('contraseña corta rechazada', r.status === 400 && r.body?.error?.codigo === 'PASSWORD_CORTA', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailRecupero, password: PASSWORD_DEMO } });
+    chequear('la contraseña vieja vale hasta restablecer', r.status === 200, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecupero, codigo: codigoRecupero, password: passwordNueva } });
+    chequear('restablecer devuelve sesión', r.status === 200 && !!r.body?.token, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailRecupero, password: passwordNueva } });
+    chequear('se ingresa con la contraseña nueva', r.status === 200, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailRecupero, password: PASSWORD_DEMO } });
+    chequear('con la vieja ya no', r.status === 401, '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecupero, codigo: codigoRecupero, password: passwordNueva } });
+    chequear('el código de recupero no se puede reusar', r.status === 400 && r.body?.error?.codigo === 'OTP_INEXISTENTE', '| ' + r.body?.error?.codigo);
+  }
+
+  // -------------------------------------------------------------
   seccion('Punto 2 · Perfil y reputación');
   r = await pedir('GET', '/usuarios/me', { bearer: sofia.bearer });
   chequear('datos propios', r.status === 200 && r.body.usuario.email !== undefined);

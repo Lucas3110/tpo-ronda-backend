@@ -12,6 +12,19 @@ async function registrar(req, res) {
   res.status(201).json(dto);
 }
 
+// Registro en dos pasos: primero el email, despues el codigo + los datos.
+async function solicitarRegistro(req, res) {
+  const { email } = req.body;
+  const dto = await authService.solicitarRegistro({ email });
+  res.status(201).json(dto);
+}
+
+async function confirmarRegistro(req, res) {
+  const { email, codigo, nombre, password } = req.body;
+  const dto = await authService.confirmarRegistro({ email, codigo, nombre, password });
+  res.status(200).json(dto);
+}
+
 async function enviarOtp(req, res) {
   const { email, proposito } = req.body;
   const dto = await authService.solicitarOtp({
@@ -37,10 +50,34 @@ async function login(req, res) {
   res.status(200).json(dto);
 }
 
+// Recupero de contrasena. Llamar a recuperarPassword otra vez es el
+// "reenviar" del enunciado: el cooldown del OTP evita el abuso.
+async function recuperarPassword(req, res) {
+  const { email } = req.body;
+  const dto = await authService.solicitarRecuperoPassword({ email });
+  res.status(200).json(dto);
+}
+
+async function restablecerPassword(req, res) {
+  const { email, codigo, password } = req.body;
+  const dto = await authService.restablecerPassword({ email, codigo, password });
+  res.status(200).json(dto);
+}
+
 async function perfil(req, res) {
   // req.usuario lo dejó el middleware autenticar()
   const dto = await authService.obtenerPerfil(req.usuario.id);
   res.status(200).json(dto);
 }
 
-module.exports = { registrar, enviarOtp, verificarOtp, login, perfil };
+module.exports = {
+  registrar,
+  solicitarRegistro,
+  confirmarRegistro,
+  enviarOtp,
+  verificarOtp,
+  login,
+  recuperarPassword,
+  restablecerPassword,
+  perfil,
+};

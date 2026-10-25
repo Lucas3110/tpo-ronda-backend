@@ -16,9 +16,13 @@ const {
 } = require('../dtos/authDto');
 
 // Propositos que la app puede pedir por los endpoints publicos /auth/otp/*.
-// CAMBIO_EMAIL existe en la tabla pero NO va aca: solo se usa desde las rutas
-// autenticadas de /usuarios/me/email, asi nadie puede usar un codigo de cambio
-// de email para iniciar sesion.
+// CAMBIO_EMAIL y RECUPERO existen en la tabla pero NO van aca.
+//   - CAMBIO_EMAIL solo se usa desde las rutas autenticadas de
+//     /usuarios/me/email, asi nadie puede usar un codigo de cambio de email
+//     para iniciar sesion.
+//   - RECUPERO tiene sus propias rutas (/auth/password/*). Si estuviera aca,
+//     un codigo de recupero alcanzaria para abrir sesion por /otp/verificar
+//     sin llegar a definir la contrasena nueva.
 const PROPOSITOS = ['REGISTRO', 'LOGIN'];
 
 // Límites de los datos de alta. Están acá y no repartidos por el código para
@@ -370,6 +374,138 @@ async function login({ email, password }) {
   return toSesionDto(usuario, generarToken(usuario));
 }
 
+// ---------------------------------------------------------------
+// Registro en dos pasos (orden que pide el enunciado de Hallado)
+// ---------------------------------------------------------------
+//
+// El enunciado nuevo pide este orden: "solicitar email -> recibir un codigo
+// de validacion (OTP) -> confirmarlo y definir una contrasena". O sea que la
+// contrasena se elige DESPUES de probar que el email es tuyo, no antes.
+//
+// registrar() (arriba) hace el alta en un solo paso y sigue existiendo para
+// no romper nada de lo que ya estaba. Estas dos funciones son el camino nuevo.
+//
+// Que la cuenta pueda existir sin contrasena no agrega riesgo: login() ya
+// rechaza a cualquier usuario sin password_hash, y hasta que no se confirme
+// el codigo el email tampoco queda verificado.
+
+// POST /api/auth/registro/solicitar
+// Paso 1: solo el email. Crea la cuenta sin contrasena y manda el codigo.
+async function solicitarRegistro({ email }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  const existente = await buscarUsuarioPorEmail(mail);
+
+  // Si ya confirmo el email, es un alta duplicada.
+  if (existente && existente.email_verificado) {
+    throw ApiError.conflict('Ya existe una cuenta con ese email', 'EMAIL_EN_USO');
+  }
+
+  // Si existe pero nunca confirmo, no pisamos nada: le mandamos otro codigo.
+  // Asi el mismo endpoint sirve para "empezar de nuevo" sin cuentas zombie.
+  if (!existente) {
+    await pool.query('INSERT INTO usuarios (email) VALUES (?)', [mail]);
+  }
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+  const codigo = await crearYEnviarOtp(usuario, 'REGISTRO');
+
+  return toOtpEnviadoDto(codigoParaDesarrollo(codigo));
+}
+
+// POST /api/auth/registro/confirmar
+// Paso 2: el codigo mas el nombre y la contrasena. Deja la sesion abierta,
+// para que la persona no tenga que loguearse justo despues de registrarse.
+async function confirmarRegistro({ email, codigo, nombre, password }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  if (!codigo) {
+    throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
+  }
+
+  // Validamos los datos ANTES de consumir el codigo: si el nombre o la
+  // contrasena estan mal, el codigo tiene que seguir sirviendo. Si no,
+  // un error de tipeo obligaria a pedir uno nuevo.
+  const nombreLimpio = validarNombre(nombre);
+  validarPassword(password);
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+  if (!usuario) {
+    throw ApiError.notFound('No existe una cuenta con ese email', 'USUARIO_NO_ENCONTRADO');
+  }
+
+  await consumirOtp(usuario, 'REGISTRO', codigo);
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query(
+    'UPDATE usuarios SET password_hash = ?, nombre = ?, email_verificado = 1 WHERE id = ?',
+    [passwordHash, nombreLimpio, usuario.id]
+  );
+
+  const actualizado = await buscarUsuarioPorId(usuario.id);
+  return toSesionDto(actualizado, generarToken(actualizado));
+}
+
+// ---------------------------------------------------------------
+// Recupero de contrasena
+// ---------------------------------------------------------------
+
+// POST /api/auth/password/recuperar
+// Manda un codigo al email de la cuenta. Llamarlo otra vez es el "reenviar"
+// que pide el enunciado: el cooldown de crearYEnviarOtp se encarga de que no
+// se pueda spamear, y el codigo anterior queda invalidado.
+async function solicitarRecuperoPassword({ email }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+
+  // A diferencia de /otp/enviar, aca no decimos si el email existe o no.
+  // En un recupero de contrasena eso le sirve a un atacante para averiguar
+  // quien tiene cuenta, y a la persona no le cambia nada: si el mail es suyo,
+  // el codigo le llega igual.
+  if (!usuario || !usuario.email_verificado) {
+    return toOtpEnviadoDto(undefined);
+  }
+
+  const codigo = await crearYEnviarOtp(usuario, 'RECUPERO');
+  return toOtpEnviadoDto(codigoParaDesarrollo(codigo));
+}
+
+// POST /api/auth/password/restablecer
+// Con el codigo correcto, define la contrasena nueva y abre sesion.
+async function restablecerPassword({ email, codigo, password }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  if (!codigo) {
+    throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
+  }
+
+  // Igual que en el registro: validamos antes de consumir el codigo.
+  validarPassword(password);
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+  if (!usuario) {
+    // Aca si cortamos con un error: ya mostramos la pantalla del codigo, y
+    // "codigo incorrecto" es lo que corresponde cuando no hay ninguno.
+    throw ApiError.badRequest('El codigo es incorrecto', 'OTP_INVALIDO');
+  }
+
+  await consumirOtp(usuario, 'RECUPERO', codigo);
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query('UPDATE usuarios SET password_hash = ? WHERE id = ?', [
+    passwordHash,
+    usuario.id,
+  ]);
+
+  const actualizado = await buscarUsuarioPorId(usuario.id);
+  return toSesionDto(actualizado, generarToken(actualizado));
+}
+
 // GET /api/auth/me
 async function obtenerPerfil(usuarioId) {
   const usuario = await buscarUsuarioPorId(usuarioId);
@@ -445,9 +581,13 @@ async function confirmarCambioEmail(usuarioId, { codigo }) {
 
 module.exports = {
   registrar,
+  solicitarRegistro,
+  confirmarRegistro,
   solicitarOtp,
   verificarOtp,
   login,
+  solicitarRecuperoPassword,
+  restablecerPassword,
   obtenerPerfil,
   solicitarCambioEmail,
   confirmarCambioEmail,

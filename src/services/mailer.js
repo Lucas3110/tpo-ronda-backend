@@ -76,12 +76,14 @@ const TITULOS_OTP = {
   REGISTRO: 'Confirmá tu cuenta',
   LOGIN: 'Ingresá a tu cuenta',
   CAMBIO_EMAIL: 'Confirmá tu nuevo email',
+  RECUPERO: 'Recuperá tu contraseña',
 };
 
 const ASUNTOS_OTP = {
   REGISTRO: 'Confirmá tu cuenta en Ronda',
   LOGIN: 'Tu código para ingresar a Ronda',
   CAMBIO_EMAIL: 'Confirmá tu nuevo email en Ronda',
+  RECUPERO: 'Tu código para recuperar la contraseña',
 };
 
 function plantillaHtml(codigo, proposito) {

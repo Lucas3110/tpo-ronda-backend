@@ -9,6 +9,11 @@ const router = express.Router();
 // Alta de cuenta: crea el usuario y dispara el primer OTP.
 router.post('/registro', controller.registrar);
 
+// Registro en dos pasos, el orden que pide el enunciado de Hallado:
+// solicitar email -> recibir el codigo -> confirmarlo y definir la contrasena.
+router.post('/registro/solicitar', controller.solicitarRegistro);
+router.post('/registro/confirmar', controller.confirmarRegistro);
+
 // Envía (o reenvía) un código. proposito: 'REGISTRO' | 'LOGIN'
 router.post('/otp/enviar', controller.enviarOtp);
 
@@ -17,6 +22,10 @@ router.post('/otp/verificar', controller.verificarOtp);
 
 // Login clásico con email + contraseña.
 router.post('/login', controller.login);
+
+// Recupero de contraseña. Volver a llamar a /recuperar es el "reenviar".
+router.post('/password/recuperar', controller.recuperarPassword);
+router.post('/password/restablecer', controller.restablecerPassword);
 
 // --- Privadas (requieren Authorization: Bearer <token>) ---
 router.get('/me', autenticar, controller.perfil);
