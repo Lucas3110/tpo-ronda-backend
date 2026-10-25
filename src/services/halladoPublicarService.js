@@ -209,10 +209,28 @@ function validarFotos(fotos) {
     if (limpia === '') {
       throw ApiError.badRequest('Hay una foto sin URL', 'FOTO_VACIA');
     }
-    // Sólo http(s): un "javascript:" o un "file:" en un <Image> no sirve para
-    // nada bueno, y la URL la termina abriendo la app de otra persona.
-    if (!/^https?:\/\//i.test(limpia)) {
-      throw ApiError.badRequest('Las fotos tienen que ser URLs http o https', 'FOTO_URL_INVALIDA');
+
+    // Se aceptan dos formas, y ninguna más:
+    //
+    //   /uploads/<nombre>  las que subió la app a este backend. Se guardan
+    //                      relativas a propósito: si guardáramos la absoluta,
+    //                      quedaría clavado el host con el que se subió
+    //                      (localhost del túnel, la IP de una red, lo que
+    //                      fuera) y la foto no se vería desde otro lado. La
+    //                      app le antepone el origen de su propio backend.
+    //
+    //   http(s)://...      URLs externas, que es lo que usan las de prueba.
+    //
+    // Cualquier otro esquema queda afuera: un "javascript:" o un "file:" en
+    // un <Image> no sirve para nada bueno, y esa URL la termina abriendo la
+    // app de otra persona.
+    const esNuestra = /^\/uploads\/[A-Za-z0-9._-]+$/.test(limpia);
+    const esExterna = /^https?:\/\//i.test(limpia);
+    if (!esNuestra && !esExterna) {
+      throw ApiError.badRequest(
+        'Las fotos tienen que ser URLs http/https o archivos subidos a este backend',
+        'FOTO_URL_INVALIDA'
+      );
     }
     return limpia;
   });

@@ -15,6 +15,10 @@ router.get('/categorias', controller.categorias);
 router.get('/barrios', controller.barrios);
 
 // --- Punto 5: publicar (todo privado, hace falta sesión) ---
+// La subida va antes que el alta: la app sube las fotos, junta las urls y
+// recien ahi crea la publicacion.
+router.post('/fotos', autenticar, controller.subirFoto);
+
 router.post('/publicaciones', autenticar, controller.crear);
 
 // "Mis publicaciones" va ANTES de /:id. Si no, Express toma "mias" como un id

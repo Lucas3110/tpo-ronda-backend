@@ -32,6 +32,8 @@ function seccion(titulo) {
   console.log(`== ${titulo} ==`);
 }
 
+const GUION_VACIO = '';
+
 async function pedir(metodo, ruta, { bearer, body } = {}) {
   const cabeceras = { 'Content-Type': 'application/json' };
   if (bearer) cabeceras.Authorization = bearer;
@@ -646,6 +648,49 @@ async function main() {
 
   r = await pedir('GET', '/hallado/barrios');
   chequear('catálogo de barrios', r.status === 200 && r.body.barrios?.length > 0, '| ' + r.body.barrios?.length);
+
+  // --- Subida de fotos ---
+  // La app manda la imagen en base64 y recibe una URL relativa. Se guarda
+  // relativa a proposito: si fuera absoluta quedaria clavado el host con el
+  // que se subio y la foto no se veria desde otro lado.
+  const PNG_MINIMO =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  r = await pedir('POST', '/hallado/fotos', { body: { base64: PNG_MINIMO, mime: 'image/png' } });
+  chequear('subir sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { base64: PNG_MINIMO, mime: 'image/png' } });
+  chequear('subir una foto', r.status === 201 && typeof r.body.url === 'string', '| ' + r.status);
+  const fotoUrl = r.body.url;
+  chequear('la url es relativa', fotoUrl?.startsWith('/uploads/'), '| ' + fotoUrl);
+
+  // El picker a veces devuelve el prefijo data: adelante del base64.
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { base64: 'data:image/png;base64,' + PNG_MINIMO, mime: 'image/png' } });
+  chequear('acepta el prefijo data:', r.status === 201, '| ' + r.status);
+
+  // Un SVG es un documento con scripts adentro, no una foto.
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { base64: PNG_MINIMO, mime: 'image/svg+xml' } });
+  chequear('formato no soportado', r.status === 400 && r.body?.error?.codigo === 'FORMATO_NO_SOPORTADO', '| ' + r.body?.error?.codigo);
+
+  // El mime lo manda el cliente y puede decir cualquier cosa: lo que vale
+  // es la firma de los primeros bytes del archivo.
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { base64: PNG_MINIMO, mime: 'image/jpeg' } });
+  chequear('gana el contenido sobre el mime', r.status === 201 && r.body.url?.endsWith('.png'), '| ' + r.body.url);
+
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { base64: Buffer.from('a'.repeat(200)).toString('base64'), mime: 'image/png' } });
+  chequear('texto plano disfrazado de imagen', r.status === 400 && r.body?.error?.codigo === 'IMAGEN_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/fotos', { bearer: sofia.bearer, body: { mime: 'image/png' } });
+  chequear('sin imagen', r.status === 400 && r.body?.error?.codigo === 'IMAGEN_REQUERIDA', '| ' + r.body?.error?.codigo);
+
+  // El archivo tiene que servirse de verdad, no solo quedar guardado.
+  const servida = await fetch(BASE.replace(/\/api$/, GUION_VACIO) + fotoUrl);
+  chequear('la foto se sirve', servida.status === 200, '| ' + servida.status);
+  chequear('con el content-type correcto', servida.headers.get('content-type')?.includes('image/png'), '| ' + servida.headers.get('content-type'));
+
+  // Sin esto, pedir /uploads/ listaria todo lo que subio cualquiera.
+  const listadoCarpeta = await fetch(BASE.replace(/\/api$/, GUION_VACIO) + '/uploads/');
+  chequear('no se lista la carpeta', listadoCarpeta.status === 404, '| ' + listadoCarpeta.status);
 
   const baseEncontre = {
     tipo: 'ENCONTRE', categoriaId: 2, titulo: 'Llavero con tres llaves',

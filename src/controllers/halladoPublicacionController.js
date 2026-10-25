@@ -5,6 +5,7 @@
 // Express 5 captura las promesas rechazadas de estos handlers y se las pasa
 // al middleware de errores, así que no hace falta try/catch.
 const servicio = require('../services/halladoPublicarService');
+const fotos = require('../services/halladoFotoService');
 
 async function categorias(req, res) {
   res.status(200).json(await servicio.listarCategorias());
@@ -12,6 +13,14 @@ async function categorias(req, res) {
 
 async function barrios(req, res) {
   res.status(200).json(await servicio.listarBarrios());
+}
+
+// POST /api/hallado/fotos
+// La app manda { base64, mime } y recibe { url }. Esa url es la que despues
+// va en el campo fotos de la publicacion.
+async function subirFoto(req, res) {
+  const dto = await fotos.subir(req.usuario.id, req.body);
+  res.status(201).json(dto);
 }
 
 async function crear(req, res) {
@@ -46,6 +55,7 @@ async function eliminar(req, res) {
 
 module.exports = {
   categorias,
+  subirFoto,
   barrios,
   crear,
   editar,
