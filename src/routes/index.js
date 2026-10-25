@@ -10,6 +10,7 @@ const ofertaRoutes = require('./ofertaRoutes');
 const operacionRoutes = require('./operacionRoutes');
 const favoritoRoutes = require('./favoritoRoutes');
 const busquedaRoutes = require('./busquedaRoutes');
+const halladoRoutes = require('./halladoRoutes');
 
 const router = express.Router();
 
@@ -28,5 +29,8 @@ router.use('/ofertas', ofertaRoutes);           // Punto 4
 router.use('/operaciones', operacionRoutes);     // Punto 9
 router.use('/favoritos', favoritoRoutes);       // Punto 10
 router.use('/busquedas-guardadas', busquedaRoutes); // Punto 10
+
+// --- Hallado (TPO 2). Dominio aparte sobre la misma base. ---
+router.use('/hallado', halladoRoutes);
 
 module.exports = router;

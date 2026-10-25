@@ -47,6 +47,16 @@ async function pedir(metodo, ruta, { bearer, body } = {}) {
   };
 }
 
+// Devuelve una fecha AAAA-MM-DD de hace N dias. Con N negativo da una
+// fecha futura, que es como probamos que el backend la rechace.
+function fechaDeHace(dias) {
+  const f = new Date();
+  f.setDate(f.getDate() - dias);
+  const mes = String(f.getMonth() + 1).padStart(2, 0);
+  const dia = String(f.getDate()).padStart(2, 0);
+  return `${f.getFullYear()}-${mes}-${dia}`;
+}
+
 async function ingresar(email) {
   const r = await pedir('POST', '/auth/login', { body: { email, password: PASSWORD_DEMO } });
   if (!r.body || !r.body.token) {
@@ -625,6 +635,135 @@ async function main() {
 
   r = await pedir('DELETE', `/busquedas-guardadas/${busquedaId}`, { bearer: martin.bearer });
   chequear('borrar búsqueda', r.status === 200);
+
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 5 · Publicar');
+  // Dominio nuevo, tablas nuevas (hallado_*). Se reusan usuarios y zonas:
+  // los barrios que pide el enunciado son las zonas que ya teniamos.
+
+  r = await pedir('GET', '/hallado/categorias');
+  chequear('catálogo de categorías', r.status === 200 && r.body.categorias?.length === 6, '| ' + r.body.categorias?.length);
+
+  r = await pedir('GET', '/hallado/barrios');
+  chequear('catálogo de barrios', r.status === 200 && r.body.barrios?.length > 0, '| ' + r.body.barrios?.length);
+
+  const baseEncontre = {
+    tipo: 'ENCONTRE', categoriaId: 2, titulo: 'Llavero con tres llaves',
+    descripcion: 'En la vereda, frente a la plaza',
+    fechaSuceso: fechaDeHace(1), franjaHoraria: 'TARDE', barrioId: 6,
+    direccion: 'Thames 1500', lat: -34.5885, lng: -58.4305,
+    preguntaVerificacion: '¿De qué color es el llavero?',
+    respuestaVerificacion: '  AZUL  ',
+    fotos: ['https://example.com/llavero1.jpg', 'https://example.com/llavero2.jpg'],
+  };
+
+  r = await pedir('POST', '/hallado/publicaciones', { body: baseEncontre });
+  chequear('publicar sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: baseEncontre });
+  chequear('publicar un hallazgo', r.status === 201, '| ' + r.status);
+  const hallazgoId = r.body.publicacion?.id;
+  chequear('vence a los 30 días', r.body.publicacion?.venceEn !== undefined);
+  chequear('nace ABIERTA', r.body.publicacion?.estado === 'ABIERTA', '| ' + r.body.publicacion?.estado);
+  chequear('guarda las dos fotos', r.body.publicacion?.fotos?.length === 2, '| ' + r.body.publicacion?.fotos?.length);
+  chequear('guarda las coordenadas', r.body.publicacion?.coordenadas?.lat === -34.5885);
+
+  // La respuesta de verificación es lo que impide que cualquiera reclame
+  // algo ajeno. Si saliera en el DTO, el mecanismo entero no sirve de nada.
+  chequear('la pregunta de verificación sí se ve', typeof r.body.publicacion?.preguntaVerificacion === 'string');
+  chequear('la respuesta NUNCA sale', JSON.stringify(r.body).toLowerCase().includes('azul') === false);
+
+  // Validaciones del alta.
+  const sinPregunta = { ...baseEncontre };
+  delete sinPregunta.preguntaVerificacion;
+  delete sinPregunta.respuestaVerificacion;
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: sinPregunta });
+  chequear('un hallazgo sin pregunta se rechaza', r.status === 400 && r.body?.error?.codigo === 'PREGUNTA_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...baseEncontre, tipo: 'PERDI' } });
+  chequear('una pérdida con pregunta se rechaza', r.status === 400 && r.body?.error?.codigo === 'VERIFICACION_NO_CORRESPONDE', '| ' + r.body?.error?.codigo);
+
+  const basePerdi = {
+    tipo: 'PERDI', categoriaId: 4, titulo: 'Gato naranja',
+    fechaSuceso: fechaDeHace(2), franjaHoraria: 'NOCHE', barrioId: 3,
+  };
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, tipo: 'REGALE' } });
+  chequear('tipo inventado', r.status === 400 && r.body?.error?.codigo === 'TIPO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, fechaSuceso: fechaDeHace(-5) } });
+  chequear('fecha futura', r.status === 400 && r.body?.error?.codigo === 'FECHA_FUTURA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, fechaSuceso: fechaDeHace(4000) } });
+  chequear('fecha demasiado vieja', r.status === 400 && r.body?.error?.codigo === 'FECHA_MUY_VIEJA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, lat: -34.6 } });
+  chequear('media coordenada', r.status === 400 && r.body?.error?.codigo === 'COORDENADAS_INCOMPLETAS', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, lat: 99, lng: -58 } });
+  chequear('latitud fuera de rango', r.status === 400 && r.body?.error?.codigo === 'LATITUD_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, categoriaId: 9999 } });
+  chequear('categoría inexistente', r.status === 400 && r.body?.error?.codigo === 'CATEGORIA_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, barrioId: 9999 } });
+  chequear('barrio inexistente', r.status === 400 && r.body?.error?.codigo === 'BARRIO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  // Una URL "javascript:" la termina abriendo la app de otra persona.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, fotos: ['javascript:alert(1)'] } });
+  chequear('foto con esquema raro', r.status === 400 && r.body?.error?.codigo === 'FOTO_URL_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, fotos: Array(9).fill('https://example.com/f.jpg') } });
+  chequear('más de 8 fotos', r.status === 400 && r.body?.error?.codigo === 'DEMASIADAS_FOTOS', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: basePerdi });
+  chequear('publicar una pérdida', r.status === 201, '| ' + r.status);
+  const perdidaId = r.body.publicacion?.id;
+
+  // Mis publicaciones.
+  r = await pedir('GET', '/hallado/publicaciones/mias', { bearer: sofia.bearer });
+  chequear('mis publicaciones', r.status === 200 && r.body.publicaciones?.length >= 2, '| ' + r.body.publicaciones?.length);
+  chequear('trae el resumen por estado', typeof r.body.resumen?.abiertas === 'number');
+  chequear('trae los días para vencer', typeof r.body.publicaciones?.[0]?.diasParaVencer === 'number');
+
+  r = await pedir('GET', '/hallado/publicaciones/mias?estado=CUALQUIERA', { bearer: sofia.bearer });
+  chequear('estado de filtro inventado', r.status === 400 && r.body?.error?.codigo === 'ESTADO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  // Editar.
+  r = await pedir('PATCH', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer, body: { titulo: 'Llavero azul con tres llaves' } });
+  chequear('editar el título', r.status === 200 && r.body.publicacion?.titulo === 'Llavero azul con tres llaves');
+
+  // Cambiar el tipo invalidaría los reclamos que ya tenga encima.
+  r = await pedir('PATCH', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer, body: { tipo: 'PERDI' } });
+  chequear('el tipo no se puede cambiar', r.status === 400 && r.body?.error?.codigo === 'TIPO_NO_EDITABLE', '| ' + r.body?.error?.codigo);
+
+  // Nadie toca lo ajeno.
+  r = await pedir('PATCH', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer, body: { titulo: 'mio ahora' } });
+  chequear('no se edita lo ajeno', r.status === 403 && r.body?.error?.codigo === 'NO_SOS_EL_PUBLICADOR', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('no se borra lo ajeno', r.status === 403, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}/propia`, { bearer: martin.bearer });
+  chequear('no se ve la ficha privada ajena', r.status === 403, '| ' + r.body?.error?.codigo);
+
+  // Renovar.
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/renovar`, { bearer: sofia.bearer });
+  chequear('renovar', r.status === 200 && r.body.publicacion?.estado === 'ABIERTA', '| ' + r.body.publicacion?.estado);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/renovar`, { bearer: martin.bearer });
+  chequear('no se renueva lo ajeno', r.status === 403, '| ' + r.body?.error?.codigo);
+
+  // Borrar.
+  r = await pedir('DELETE', `/hallado/publicaciones/${perdidaId}`, { bearer: sofia.bearer });
+  chequear('borrar la propia', r.status === 200, '| ' + r.status);
+
+  r = await pedir('DELETE', `/hallado/publicaciones/${perdidaId}`, { bearer: sofia.bearer });
+  chequear('borrar dos veces', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
+
+  // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
+  // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
+  await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
 
   // -------------------------------------------------------------
   console.log('');
