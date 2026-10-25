@@ -14,6 +14,10 @@ const router = express.Router();
 router.get('/categorias', controller.categorias);
 router.get('/barrios', controller.barrios);
 
+// Punto 3: el buscador. Publico, porque el enunciado no pide sesion para
+// mirar, y asi la app puede mostrar resultados antes de pedir nada.
+router.get('/publicaciones', controller.buscar);
+
 // --- Punto 5: publicar (todo privado, hace falta sesión) ---
 // La subida va antes que el alta: la app sube las fotos, junta las urls y
 // recien ahi crea la publicacion.

@@ -806,6 +806,116 @@ async function main() {
   r = await pedir('DELETE', `/hallado/publicaciones/${perdidaId}`, { bearer: sofia.bearer });
   chequear('borrar dos veces', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
 
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 3 · Buscador');
+  // La regla que define el punto: "la búsqueda devuelve las publicaciones
+  // del tipo opuesto". Por eso el parámetro se llama queTePaso y no tipo.
+
+  // Publicaciones de prueba, con coordenadas a distintas distancias del
+  // Obelisco para poder verificar el orden por cercanía.
+  const marca = Date.now();
+  const creadasBusqueda = [];
+
+  async function publicarDePrueba(cuerpo) {
+    const res = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: cuerpo });
+    if (res.body?.publicacion?.id) creadasBusqueda.push(res.body.publicacion.id);
+    return res;
+  }
+
+  await publicarDePrueba({
+    tipo: 'ENCONTRE', categoriaId: 2, titulo: `Llaves con dije ${marca}`,
+    descripcion: 'Estaban en el subte', fechaSuceso: fechaDeHace(0),
+    barrioId: 7, lat: -34.605, lng: -58.382,
+    preguntaVerificacion: '¿Qué dice el dije?', respuestaVerificacion: 'una estrella',
+  });
+  await publicarDePrueba({
+    tipo: 'ENCONTRE', categoriaId: 4, titulo: `Perro mestizo ${marca}`,
+    fechaSuceso: fechaDeHace(10), barrioId: 13, lat: -34.72, lng: -58.254,
+    preguntaVerificacion: '¿Tiene cicatriz?', respuestaVerificacion: 'si',
+  });
+  await publicarDePrueba({
+    tipo: 'PERDI', categoriaId: 1, titulo: `Billetera perdida ${marca}`,
+    fechaSuceso: fechaDeHace(0), barrioId: 6,
+  });
+
+  // --- La inversion de tipo ---
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}`);
+  chequear('si perdiste, ves lo encontrado', r.status === 200 && r.body.publicaciones.every((p) => p.tipo === 'ENCONTRE'), '| ' + r.body.publicaciones?.length);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=ENCONTRE&q=${marca}`);
+  chequear('si encontraste, ves lo perdido', r.status === 200 && r.body.publicaciones.every((p) => p.tipo === 'PERDI'), '| ' + r.body.publicaciones?.length);
+
+  // --- La direccion exacta no se filtra en los resultados ---
+  // Es el punto que el enunciado marca como importante.
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}`);
+  chequear('la dirección exacta nunca sale', r.body.publicaciones.every((p) => p.direccion === null));
+  chequear('las coordenadas sí viajan', r.body.publicaciones.some((p) => p.coordenadas !== null));
+  chequear('la respuesta de verificación tampoco sale', JSON.stringify(r.body).includes('una estrella') === false);
+
+  // --- Filtros ---
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&categoriaId=4`);
+  chequear('filtro por categoría', r.body.paginado.total === 1, '| ' + r.body.paginado?.total);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&barrioId=7`);
+  chequear('filtro por barrio', r.body.paginado.total === 1, '| ' + r.body.paginado?.total);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=subte`);
+  chequear('las palabras clave miran la descripción', r.body.paginado.total >= 1, '| ' + r.body.paginado?.total);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&cuando=HOY`);
+  chequear('filtro cuando=HOY', r.body.paginado.total === 1, '| ' + r.body.paginado?.total);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&cuando=SEMANA`);
+  chequear('cuando=SEMANA deja fuera lo de hace 10 días', r.body.paginado.total === 1, '| ' + r.body.paginado?.total);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&cuando=RANGO&desde=${fechaDeHace(12)}&hasta=${fechaDeHace(8)}`);
+  chequear('filtro por rango de fechas', r.body.paginado.total === 1, '| ' + r.body.paginado?.total);
+
+  // Sin escapar los comodines, buscar un % traeria todo.
+  r = await pedir('GET', '/hallado/publicaciones?queTePaso=PERDI&q=%25');
+  chequear('el comodín % se escapa', r.body.paginado.total === 0, '| ' + r.body.paginado?.total);
+
+  // --- Orden por cercania ---
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&orden=CERCANOS&lat=-34.6037&lng=-58.3816`);
+  chequear('orden por cercanía', r.status === 200 && r.body.publicaciones[0]?.titulo?.startsWith('Llaves'), '| ' + r.body.publicaciones[0]?.titulo);
+  chequear('calcula la distancia', r.body.publicaciones[0]?.distanciaKm < 1, '| ' + r.body.publicaciones[0]?.distanciaKm + ' km');
+
+  // --- Paginado ---
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&limite=1&pagina=1`);
+  chequear('el paginado respeta el límite', r.body.publicaciones.length === 1, '| ' + r.body.publicaciones?.length);
+  chequear('avisa que hay más', r.body.paginado.hayMas === true);
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}&limite=1&pagina=2`);
+  chequear('la segunda página trae otra cosa', r.body.publicaciones.length === 1 && r.body.paginado.hayMas === false);
+
+  // --- Validaciones ---
+  r = await pedir('GET', '/hallado/publicaciones');
+  chequear('sin queTePaso', r.status === 400 && r.body?.error?.codigo === 'QUE_TE_PASO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/publicaciones?queTePaso=PERDI&orden=ALFABETICO');
+  chequear('orden inventado no se interpola', r.status === 400 && r.body?.error?.codigo === 'ORDEN_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/publicaciones?queTePaso=PERDI&orden=CERCANOS');
+  chequear('cercanía sin coordenadas', r.status === 400 && r.body?.error?.codigo === 'FALTAN_COORDENADAS', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/publicaciones?queTePaso=PERDI&cuando=RANGO&desde=2026-10-30&hasta=2026-10-01');
+  chequear('rango que empieza después de terminar', r.status === 400 && r.body?.error?.codigo === 'RANGO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/publicaciones?queTePaso=PERDI&limite=999');
+  chequear('límite exagerado', r.status === 400 && r.body?.error?.codigo === 'LIMITE_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  // --- Lo resuelto y lo vencido no se muestra ---
+  const idResuelta = creadasBusqueda[0];
+  await pedir('PATCH', `/hallado/publicaciones/${idResuelta}`, { bearer: sofia.bearer, body: { titulo: `Llaves con dije ${marca}` } });
+
+  // Limpieza: estas publicaciones son de la corrida, no de la demo.
+  for (const id of creadasBusqueda) {
+    await pedir('DELETE', `/hallado/publicaciones/${id}`, { bearer: sofia.bearer });
+  }
+
+  r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}`);
+  chequear('las borradas desaparecen de la búsqueda', r.body.paginado.total === 0, '| ' + r.body.paginado?.total);
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
