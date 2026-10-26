@@ -52,6 +52,6 @@ module.exports = {
     // BadCredentials que no explica nada. Se los sacamos nosotros, que es lo
     // que espera cualquiera que copie y pegue lo que Google le mostró.
     password: (process.env.SMTP_PASS || '').replace(/\s+/g, ''),
-    remitente: process.env.MAIL_FROM || 'Ronda <no-reply@ronda.app>',
+    remitente: process.env.MAIL_FROM || 'Hallado <no-reply@hallado.app>',
   },
 };

@@ -15,7 +15,7 @@
 //   3. En el .env:  MAIL_MODE=smtp
 //                   SMTP_USER=tu.cuenta@gmail.com
 //                   SMTP_PASS=la contraseña de aplicacion
-//                   MAIL_FROM=Ronda <tu.cuenta@gmail.com>
+//                   MAIL_FROM=Hallado <tu.cuenta@gmail.com>
 //
 // Ojo con MAIL_FROM: Gmail reescribe el remitente al de la cuenta autenticada.
 // Poner un dominio ajeno (no-reply@ronda.app) hace que el mail caiga en spam,
@@ -79,10 +79,15 @@ const TITULOS_OTP = {
   RECUPERO: 'Recuperá tu contraseña',
 };
 
+// El nombre va en una sola constante. La primera versión lo tenía escrito en
+// cuatro strings distintos, y al renombrar la app a Hallado quedaron mails
+// diciendo "Ronda" cuando la pantalla ya decía otra cosa.
+const APP = 'Hallado';
+
 const ASUNTOS_OTP = {
-  REGISTRO: 'Confirmá tu cuenta en Ronda',
-  LOGIN: 'Tu código para ingresar a Ronda',
-  CAMBIO_EMAIL: 'Confirmá tu nuevo email en Ronda',
+  REGISTRO: `Confirmá tu cuenta en ${APP}`,
+  LOGIN: `Tu código para ingresar a ${APP}`,
+  CAMBIO_EMAIL: `Confirmá tu nuevo email en ${APP}`,
   RECUPERO: 'Tu código para recuperar la contraseña',
 };
 
@@ -90,7 +95,7 @@ function plantillaHtml(codigo, proposito) {
   const titulo = TITULOS_OTP[proposito] || TITULOS_OTP.LOGIN;
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto">
-      <h2 style="color:#1f2937">Ronda · ${titulo}</h2>
+      <h2 style="color:#1B6E4F">${APP} · ${titulo}</h2>
       <p>Tu código de verificación es:</p>
       <p style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#111827">${codigo}</p>
       <p style="color:#6b7280">Vence en ${config.otp.minutosValidez} minutos.
