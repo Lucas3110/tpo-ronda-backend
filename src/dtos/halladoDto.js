@@ -90,10 +90,13 @@ function toPublicacionPropiaDto(fila, fotos = []) {
 // publicó. Es la misma publicación que en los resultados, con el publicador
 // ampliado: ahí alcanza con el nombre, acá hace falta la reputación y lo que
 // se necesita para ir a su perfil público.
-function toDetalleDto(fila, fotos, { verDireccion = false, publicador, reputacion } = {}) {
+function toDetalleDto(fila, fotos, { verDireccion = false, publicador, reputacion, seguimiento } = {}) {
   return {
     ...toPublicacionDto(fila, fotos, { verDireccion }),
     publicador: toPublicadorDto(publicador, reputacion),
+    // Para pintar el botón de seguir sin otro pedido.
+    laSigo: Boolean(seguimiento?.laSigo),
+    seguidores: Number(seguimiento?.seguidores ?? 0),
   };
 }
 

@@ -963,6 +963,41 @@ async function main() {
   r = await pedir('GET', '/hallado/publicaciones/abc', { bearer: martin.bearer });
   chequear('id inválido', r.status === 400 && r.body?.error?.codigo === 'ID_INVALIDO', '| ' + r.body?.error?.codigo);
 
+  // --- Seguir ---
+  // "Cualquier persona puede seguir la publicación para enterarse de sus
+  // novedades." Seguir y dejar de seguir son idempotentes: un reintento del
+  // celular no tiene que dar error.
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/seguir`);
+  chequear('seguir sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/seguir`, { bearer: martin.bearer });
+  chequear('seguir una publicación', r.status === 200 && r.body.laSigo === true && r.body.seguidores === 1, '| ' + JSON.stringify(r.body));
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/seguir`, { bearer: martin.bearer });
+  chequear('seguir dos veces no duplica', r.status === 200 && r.body.seguidores === 1, '| ' + r.body.seguidores);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('el detalle sabe que la sigo', r.body.publicacion?.laSigo === true && r.body.publicacion?.seguidores === 1);
+  chequear('un tercero puede seguir', r.body.acciones?.puedeSeguir === true);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: carla.bearer });
+  chequear('otra persona ve que no la sigue', r.body.publicacion?.laSigo === false && r.body.publicacion?.seguidores === 1);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
+  chequear('el publicador no sigue lo suyo', r.body.acciones?.puedeSeguir === false);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/seguir`, { bearer: sofia.bearer });
+  chequear('seguir lo propio se rechaza', r.status === 400 && r.body?.error?.codigo === 'ES_TU_PUBLICACION', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}/seguir`, { bearer: martin.bearer });
+  chequear('dejar de seguir', r.status === 200 && r.body.laSigo === false && r.body.seguidores === 0, '| ' + JSON.stringify(r.body));
+
+  r = await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}/seguir`, { bearer: martin.bearer });
+  chequear('dejar de seguir dos veces no es error', r.status === 200 && r.body.laSigo === false);
+
+  r = await pedir('POST', '/hallado/publicaciones/999999/seguir', { bearer: martin.bearer });
+  chequear('seguir algo inexistente', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
