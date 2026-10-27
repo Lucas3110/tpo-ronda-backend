@@ -399,10 +399,74 @@ async function rechazar(reclamoId, usuarioId, datos = {}) {
   return responder(reclamoId, usuarioId, 'RECHAZADO', motivo);
 }
 
+// ---------------------------------------------------------------
+// Mis reclamos
+// ---------------------------------------------------------------
+// "Sección 'Mis reclamos' donde la persona ve, en un mismo lugar y siempre
+// actualizados, los reclamos que envió y los que recibió."
+//
+// Siempre actualizados = el vencimiento perezoso corre antes de listar, así
+// que un pendiente que pasó las 48 horas ya aparece VENCIDO.
+
+// Los pendientes primero (son los que piden algo), después del más nuevo
+// al más viejo.
+const ORDEN_RECLAMOS = "(r.estado = 'PENDIENTE') DESC, r.creado_en DESC, r.id DESC";
+
+// GET /api/hallado/reclamos/mios
+async function listarMios(usuarioId) {
+  await vencerReclamos();
+
+  const [enviados] = await pool.query(
+    `${SELECT_RECLAMO} WHERE r.reclamante_id = ? ORDER BY ${ORDEN_RECLAMOS}`,
+    [usuarioId]
+  );
+
+  // Recibidos: los que llegaron sobre mis publicaciones. Los que el sistema
+  // rechazó solo por respuesta incorrecta no se listan: nunca llegaron a la
+  // persona, no tuvo que decidir nada, y verlos sólo haría ruido.
+  const [recibidos] = await pool.query(
+    `${SELECT_RECLAMO}
+      WHERE p.usuario_id = ?
+        AND NOT (r.automatico = 1 AND r.respuesta_correcta = 0)
+      ORDER BY ${ORDEN_RECLAMOS}`,
+    [usuarioId]
+  );
+
+  const pendientes = (filas) => filas.filter((r) => r.estado === 'PENDIENTE').length;
+
+  return {
+    enviados: enviados.map((fila) => toReclamoDto(fila, usuarioId)),
+    recibidos: recibidos.map((fila) => toReclamoDto(fila, usuarioId)),
+    // Para las solapas y el indicador del menú: cuántos esperan de cada lado.
+    resumen: {
+      enviadosPendientes: pendientes(enviados),
+      recibidosPendientes: pendientes(recibidos),
+    },
+  };
+}
+
+// GET /api/hallado/reclamos/:id
+// Lo ven las dos partes y nadie más: un reclamo lleva la foto y la respuesta
+// de quien reclama.
+async function obtener(reclamoId, usuarioId) {
+  await vencerReclamos();
+
+  const id = validarId(reclamoId, 'id del reclamo');
+  const reclamo = await buscarReclamo(id);
+
+  if (reclamo.reclamante_id !== usuarioId && reclamo.publicador_id !== usuarioId) {
+    throw ApiError.forbidden('Ese reclamo no es tuyo', 'NO_TE_CORRESPONDE');
+  }
+
+  return { reclamo: toReclamoDto(reclamo, usuarioId) };
+}
+
 module.exports = {
   crear,
   aceptar,
   rechazar,
+  listarMios,
+  obtener,
   vencerReclamos,
   resumenParaDetalle,
   MAX_INTENTOS,
