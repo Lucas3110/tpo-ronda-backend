@@ -1201,6 +1201,64 @@ async function main() {
   await pedir('POST', `/hallado/reclamos/${reclamoParaguasId}/rechazar`, { bearer: sofia.bearer });
   await pedir('DELETE', `/hallado/publicaciones/${paraguasId}`, { bearer: sofia.bearer });
 
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 10 · Historial');
+  // Un caso es un reclamo aceptado, y aparece en el historial de las dos
+  // personas con el rol dado vuelta: quien devolvió y quien recuperó.
+  //
+  // De la sección anterior queda el hallazgo de Sofía con el "Es mío" de
+  // Martín aceptado (Sofía devolvió, Martín recuperó). Se suma una pérdida
+  // de Sofía con un "Lo encontré" de Martín aceptado (Sofía recuperó,
+  // Martín devolvió).
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, titulo: 'Gata siamesa perdida' } });
+  const gataId = r.body.publicacion?.id;
+  r = await pedir('POST', `/hallado/publicaciones/${gataId}/reclamos`, { bearer: martin.bearer, body: { fotoUrl: 'https://example.com/gata.jpg', barrioId: 3 } });
+  const reclamoGataId = r.body.reclamo?.id;
+  await pedir('POST', `/hallado/reclamos/${reclamoGataId}/aceptar`, { bearer: sofia.bearer });
+
+  r = await pedir('GET', '/hallado/historial');
+  chequear('historial sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/historial', { bearer: sofia.bearer });
+  chequear('historial de Sofía', r.status === 200 && Array.isArray(r.body.casos), '| ' + r.status);
+  const devolvio = r.body.casos?.find((c) => c.publicacion?.id === hallazgoId);
+  const recupero = r.body.casos?.find((c) => c.publicacion?.id === gataId);
+  chequear('el hallazgo aceptado cuenta como "Devolví"', devolvio?.rol === 'DEVOLVI', '| ' + devolvio?.rol);
+  chequear('la pérdida aceptada cuenta como "Recuperé"', recupero?.rol === 'RECUPERE', '| ' + recupero?.rol);
+  chequear('cada caso trae fecha, objeto y contraparte', devolvio?.fecha && devolvio?.publicacion?.titulo && devolvio?.contraparte?.id === martin.id);
+  chequear('el resumen cuenta los dos lados', r.body.resumen?.devolvi >= 1 && r.body.resumen?.recupere >= 1, '| ' + JSON.stringify(r.body.resumen));
+  chequear('lo más reciente va primero', r.body.casos?.[0]?.id === reclamoGataId);
+
+  r = await pedir('GET', '/hallado/historial', { bearer: martin.bearer });
+  chequear('para Martín los roles están dados vuelta',
+    r.body.casos?.find((c) => c.publicacion?.id === hallazgoId)?.rol === 'RECUPERE'
+      && r.body.casos?.find((c) => c.publicacion?.id === gataId)?.rol === 'DEVOLVI');
+  chequear('y la contraparte es Sofía', r.body.casos?.every((c) => c.contraparte?.id !== martin.id));
+
+  r = await pedir('GET', '/hallado/historial?tipo=DEVOLVI', { bearer: sofia.bearer });
+  chequear('filtro por tipo', r.body.casos?.length >= 1 && r.body.casos?.every((c) => c.rol === 'DEVOLVI'), '| ' + r.body.casos?.length);
+  chequear('el resumen no cambia con el filtro', r.body.resumen?.recupere >= 1);
+
+  r = await pedir('GET', `/hallado/historial?desde=${fechaDeHace(0)}&hasta=${fechaDeHace(0)}`, { bearer: sofia.bearer });
+  chequear('filtro por rango de fechas incluye lo de hoy', r.body.casos?.length >= 2, '| ' + r.body.casos?.length);
+
+  r = await pedir('GET', '/hallado/historial?desde=2020-01-01&hasta=2020-01-31', { bearer: sofia.bearer });
+  chequear('un rango sin casos devuelve vacío', r.status === 200 && r.body.casos?.length === 0, '| ' + r.body.casos?.length);
+
+  r = await pedir('GET', '/hallado/historial?tipo=PRESTE', { bearer: sofia.bearer });
+  chequear('tipo inventado', r.status === 400 && r.body?.error?.codigo === 'TIPO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/historial?desde=ayer', { bearer: sofia.bearer });
+  chequear('fecha mal escrita', r.status === 400 && r.body?.error?.codigo === 'FECHA_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/historial?desde=2026-10-30&hasta=2026-10-01', { bearer: sofia.bearer });
+  chequear('rango dado vuelta', r.status === 400 && r.body?.error?.codigo === 'RANGO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/historial', { bearer: carla.bearer });
+  chequear('quien no cerró ningún caso tiene el historial vacío', r.body.casos?.every((c) => c.contraparte?.id !== undefined) && r.body.resumen?.devolvi === 0 && r.body.resumen?.recupere === 0, '| ' + JSON.stringify(r.body.resumen));
+
+  await pedir('DELETE', `/hallado/publicaciones/${gataId}`, { bearer: sofia.bearer });
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });

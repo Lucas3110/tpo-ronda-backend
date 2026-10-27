@@ -151,6 +151,26 @@ function toReclamoDto(fila, usuarioId = null) {
   };
 }
 
+// Un caso del historial (punto 10): un reclamo aceptado visto desde uno de
+// sus dos lados. "Fecha, objeto y contraparte", como pide el enunciado.
+function toCasoDto(fila, usuarioId) {
+  const soyElReclamante = fila.reclamante_id === usuarioId;
+  return {
+    id: fila.id,
+    rol: fila.rol,
+    fecha: fila.respondido_en,
+    publicacion: {
+      id: fila.publicacion_id,
+      tipo: fila.pub_tipo,
+      titulo: fila.pub_titulo,
+      portada: fila.pub_portada ?? null,
+    },
+    contraparte: soyElReclamante
+      ? { id: fila.publicador_id, nombre: fila.publicador_nombre }
+      : { id: fila.reclamante_id, nombre: fila.reclamante_nombre },
+  };
+}
+
 // Lo mínimo del reclamo para el detalle de la publicación.
 function toReclamoResumenDto(fila) {
   return {
@@ -209,4 +229,5 @@ module.exports = {
   toReputacionDto,
   toReclamoDto,
   toReclamoResumenDto,
+  toCasoDto,
 };

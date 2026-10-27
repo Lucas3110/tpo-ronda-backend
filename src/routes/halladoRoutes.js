@@ -6,6 +6,7 @@
 const express = require('express');
 const controller = require('../controllers/halladoPublicacionController');
 const reclamos = require('../controllers/halladoReclamoController');
+const historial = require('../controllers/halladoHistorialController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -53,6 +54,9 @@ router.get('/reclamos/:id', autenticar, reclamos.obtener);
 // El publicador acepta o rechaza cada reclamo.
 router.post('/reclamos/:id/aceptar', autenticar, reclamos.aceptar);
 router.post('/reclamos/:id/rechazar', autenticar, reclamos.rechazar);
+
+// --- Punto 10: historial de casos resueltos ---
+router.get('/historial', autenticar, historial.listar);
 
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);
