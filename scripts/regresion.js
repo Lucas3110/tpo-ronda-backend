@@ -1257,6 +1257,64 @@ async function main() {
   r = await pedir('GET', '/hallado/historial', { bearer: carla.bearer });
   chequear('quien no cerró ningún caso tiene el historial vacío', r.body.casos?.every((c) => c.contraparte?.id !== undefined) && r.body.resumen?.devolvi === 0 && r.body.resumen?.recupere === 0, '| ' + JSON.stringify(r.body.resumen));
 
+
+  // --- Valoraciones ---
+  // Cada parte valora a la otra una sola vez por caso, dentro de los 7 días.
+  // El agradecimiento público lo deja sólo quien recuperó su objeto.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { body: { tipo: 'POSITIVA' } });
+  chequear('valorar sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { bearer: carla.bearer, body: { tipo: 'POSITIVA' } });
+  chequear('un tercero no valora', r.status === 403 && r.body?.error?.codigo === 'NO_TE_CORRESPONDE', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { bearer: sofia.bearer, body: { tipo: 'REGULAR' } });
+  chequear('tipo inventado', r.status === 400 && r.body?.error?.codigo === 'TIPO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEsMioId}/valoracion`, { bearer: sofia.bearer, body: { tipo: 'POSITIVA' } });
+  chequear('un reclamo rechazado no se valora', r.status === 409 && r.body?.error?.codigo === 'CASO_NO_RESUELTO', '| ' + r.body?.error?.codigo);
+
+  // Sofía devolvió el llavero: puede valorar pero no agradecer.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { bearer: sofia.bearer, body: { tipo: 'POSITIVA', agradecimiento: 'Gracias' } });
+  chequear('quien devolvió no deja agradecimiento', r.status === 400 && r.body?.error?.codigo === 'AGRADECIMIENTO_NO_CORRESPONDE', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { bearer: sofia.bearer, body: { tipo: 'POSITIVA', mensaje: 'Vino puntual y muy amable' } });
+  chequear('valorar a la otra parte', r.status === 201 && r.body.valoracion?.tipo === 'POSITIVA', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('con el mensaje y las dos personas', r.body.valoracion?.mensaje?.includes('puntual') && r.body.valoracion?.autor?.id === sofia.id && r.body.valoracion?.destinatario?.id === martin.id);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, { bearer: sofia.bearer, body: { tipo: 'NEGATIVA' } });
+  chequear('una sola valoración por parte', r.status === 409 && r.body?.error?.codigo === 'YA_VALORASTE', '| ' + r.body?.error?.codigo);
+
+  // Martín recuperó el llavero: valora y agradece públicamente.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/valoracion`, {
+    bearer: martin.bearer,
+    body: { tipo: 'POSITIVA', mensaje: 'Un genio', agradecimiento: 'Gracias Sofía por guardarme el llavero, sos una genia' },
+  });
+  chequear('quien recuperó valora y agradece', r.status === 201 && r.body.valoracion?.agradecimiento?.includes('genia'), '| ' + r.status + ' ' + r.body?.error?.codigo);
+
+  // En la gata Martín devolvió: puede dejar una negativa, sin agradecimiento.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoGataId}/valoracion`, { bearer: martin.bearer, body: { tipo: 'NEGATIVA', mensaje: 'Llegó una hora tarde' } });
+  chequear('valoración negativa', r.status === 201 && r.body.valoracion?.tipo === 'NEGATIVA', '| ' + r.status);
+
+  r = await pedir('GET', '/hallado/historial', { bearer: sofia.bearer });
+  const casoLlavero = r.body.casos?.find((c) => c.id === reclamoAceptadoId);
+  const casoGata = r.body.casos?.find((c) => c.id === reclamoGataId);
+  chequear('el historial muestra la valoración que dejé', casoLlavero?.valoracion?.mia?.tipo === 'POSITIVA' && casoLlavero?.valoracion?.puedoValorar === false);
+  chequear('y la que me dejaron, con el agradecimiento', casoLlavero?.valoracion?.recibida?.agradecimiento?.includes('genia'));
+  chequear('un caso sin valorar sigue abierto a valorar', casoGata?.valoracion?.mia === null && casoGata?.valoracion?.puedoValorar === true && casoGata?.valoracion?.diasParaValorar >= 6, '| ' + casoGata?.valoracion?.diasParaValorar);
+  chequear('quien recuperó puede agradecer', casoGata?.valoracion?.puedoAgradecer === true && casoLlavero?.valoracion?.puedoAgradecer === false);
+  chequear('la negativa recibida se ve', casoGata?.valoracion?.recibida?.tipo === 'NEGATIVA');
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: carla.bearer });
+  chequear('las valoraciones alimentan la reputación', r.body.publicacion?.publicador?.reputacion?.valoracionesPositivas >= 1 && r.body.publicacion?.publicador?.reputacion?.valoracionesNegativas >= 1, '| ' + JSON.stringify(r.body.publicacion?.publicador?.reputacion));
+  chequear('y los agradecimientos también', r.body.publicacion?.publicador?.reputacion?.agradecimientos >= 1);
+
+  r = await pedir('GET', `/hallado/usuarios/${sofia.id}/agradecimientos`);
+  chequear('los agradecimientos son públicos', r.status === 200 && r.body.agradecimientos?.some((a) => a.texto?.includes('genia') && a.de?.id === martin.id), '| ' + r.status);
+  chequear('con la publicación de la que vienen', r.body.agradecimientos?.[0]?.publicacion?.titulo !== undefined);
+  chequear('sin el mensaje privado ni el tipo', JSON.stringify(r.body).includes('Un genio') === false && JSON.stringify(r.body).includes('POSITIVA') === false);
+
+  r = await pedir('GET', '/hallado/usuarios/999999/agradecimientos');
+  chequear('agradecimientos de alguien inexistente', r.status === 404 && r.body?.error?.codigo === 'USUARIO_NO_ENCONTRADO', '| ' + r.body?.error?.codigo);
   await pedir('DELETE', `/hallado/publicaciones/${gataId}`, { bearer: sofia.bearer });
 
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen

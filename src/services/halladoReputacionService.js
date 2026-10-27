@@ -19,18 +19,27 @@
 //
 // Se cuenta sobre los reclamos aceptados y no sobre las publicaciones
 // resueltas para no depender de que las dos cosas estén siempre en sincro.
+//
+// Y las valoraciones (punto 10): cuántas positivas y negativas recibió, y
+// cuántos agradecimientos públicos le dejaron.
 const { pool } = require('../config/db');
 
 async function obtenerReputacion(usuarioId) {
   const [filas] = await pool.query(
     `SELECT
+        (SELECT COUNT(*) FROM hallado_valoraciones
+          WHERE destinatario_id = ? AND tipo = 'POSITIVA') AS valoraciones_positivas,
+        (SELECT COUNT(*) FROM hallado_valoraciones
+          WHERE destinatario_id = ? AND tipo = 'NEGATIVA') AS valoraciones_negativas,
+        (SELECT COUNT(*) FROM hallado_valoraciones
+          WHERE destinatario_id = ? AND agradecimiento IS NOT NULL) AS agradecimientos,
         (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
           WHERE r.estado = 'ACEPTADO'
             AND ((p.usuario_id = ? AND r.tipo = 'ES_MIO') OR (r.reclamante_id = ? AND r.tipo = 'LO_ENCONTRE'))) AS devoluciones,
         (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
           WHERE r.estado = 'ACEPTADO'
             AND ((p.usuario_id = ? AND r.tipo = 'LO_ENCONTRE') OR (r.reclamante_id = ? AND r.tipo = 'ES_MIO'))) AS recuperos`,
-    [usuarioId, usuarioId, usuarioId, usuarioId]
+    [usuarioId, usuarioId, usuarioId, usuarioId, usuarioId, usuarioId, usuarioId]
   );
   return filas[0];
 }

@@ -7,6 +7,7 @@ const express = require('express');
 const controller = require('../controllers/halladoPublicacionController');
 const reclamos = require('../controllers/halladoReclamoController');
 const historial = require('../controllers/halladoHistorialController');
+const valoraciones = require('../controllers/halladoValoracionController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -57,6 +58,12 @@ router.post('/reclamos/:id/rechazar', autenticar, reclamos.rechazar);
 
 // --- Punto 10: historial de casos resueltos ---
 router.get('/historial', autenticar, historial.listar);
+
+// Cada parte valora a la otra dentro de los 7 días de la devolución.
+router.post('/reclamos/:id/valoracion', autenticar, valoraciones.valorar);
+
+// Los agradecimientos públicos de una persona, para su perfil (punto 2).
+router.get('/usuarios/:id/agradecimientos', valoraciones.agradecimientos);
 
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);

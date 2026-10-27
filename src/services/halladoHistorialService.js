@@ -19,6 +19,8 @@ const { pool } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const { toCasoDto } = require('../dtos/halladoDto');
 const { SELECT_RECLAMO, vencerReclamos } = require('./halladoReclamoService');
+const { valoracionesDe } = require('./halladoValoracionService');
+const config = require('../config/env');
 
 const ROLES = ['DEVOLVI', 'RECUPERE'];
 
@@ -101,8 +103,16 @@ async function listar(usuarioId, filtros = {}) {
     if (fila.rol === 'RECUPERE') resumen.recupere = Number(fila.cantidad);
   }
 
+  // Las valoraciones de cada caso, en una sola consulta para todos.
+  const valoraciones = await valoracionesDe(filas.map((f) => f.id));
+
   return {
-    casos: filas.map((fila) => toCasoDto(fila, usuarioId)),
+    casos: filas.map((fila) =>
+      toCasoDto(fila, usuarioId, {
+        valoraciones: valoraciones.get(fila.id) ?? [],
+        plazoDias: config.valoracion.plazoDias,
+      })
+    ),
     resumen,
   };
 }

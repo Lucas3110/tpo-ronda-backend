@@ -41,6 +41,7 @@ const TIPO_DE_RECLAMO = { ENCONTRE: 'ES_MIO', PERDI: 'LO_ENCONTRE' };
 const SELECT_RECLAMO = `
   SELECT r.*,
          GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), r.vence_en)) AS minutos_para_vencer,
+         TIMESTAMPDIFF(DAY, r.respondido_en, NOW()) AS dias_desde_respuesta,
          p.tipo       AS pub_tipo,
          p.titulo     AS pub_titulo,
          p.usuario_id AS publicador_id,
