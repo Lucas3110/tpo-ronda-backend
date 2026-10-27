@@ -6,9 +6,13 @@
 //   npm run db:seed:hallado -- --usuario tu.email@gmail.com
 //   npm run db:seed:hallado -- --limpiar
 //
-// Con --usuario, ademas de las publicaciones de los vecinos demo crea cuatro
+// Con --usuario, ademas de las publicaciones de los vecinos demo crea cinco
 // a nombre de esa cuenta, una por estado, para que "Mis publicaciones" tenga
-// los cuatro badges. Sin ese flag solo siembra lo que se busca.
+// los cuatro badges, y los reclamos y valoraciones que hacen falta para
+// recorrer los puntos 4, 7 y 10 en la demo: un reclamo recibido esperando
+// respuesta, uno enviado, un caso en "Devolví" ya valorado por la otra
+// parte (con agradecimiento publico) y uno en "Recupere" todavia sin
+// valorar. Sin ese flag solo siembra lo que se busca.
 //
 // Es idempotente: borra lo que sembro antes y lo vuelve a crear, asi siempre
 // queda el mismo set conocido.
@@ -71,7 +75,19 @@ const MIAS = [
   { t: 'Encontré una campera de niño', cat: 'Ropa', barrio: 'Flores', dias: 5, estado: 'EN_RECLAMO', venceEnDias: 25, fotos: 1, desc: 'Talle 6, con dibujos de dinosaurios. Ya me escribió alguien.' },
   { t: 'Encontré un perro salchicha', cat: 'Mascotas', barrio: 'Caballito', dias: 20, estado: 'RESUELTA', venceEnDias: 10, fotos: 2, desc: 'Apareció la dueña y se lo llevó. Lo dejo publicado como referencia.' },
   { t: 'Perdí mi bufanda en el colectivo', cat: 'Ropa', barrio: 'Palermo', dias: 40, estado: 'ABIERTA', venceEnDias: -10, fotos: 0, desc: 'Ya pasaron los 30 días, esta quedó vencida.' },
+  // Resuelta del otro lado: la persona PERDIO algo y un vecino se lo
+  // devolvio. Es el caso de "Recupere" en el historial (punto 10).
+  { t: 'Perdí mi billetera en el subte', cat: 'Documentos', barrio: 'Belgrano', dias: 6, estado: 'RESUELTA', venceEnDias: 24, fotos: 1, desc: 'Billetera marrón con el DNI y la SUBE. Ya apareció.' },
 ];
+
+// Los reclamos y valoraciones de ejemplo (puntos 7 y 10). Cuelgan de las
+// publicaciones de arriba y de las de los vecinos, asi que se borran solos
+// con ellas.
+//
+// La respuesta a la pregunta de verificacion de todo lo sembrado es
+// "Respuesta de ejemplo" (ver preguntaPara): sirve para probar "Es mio"
+// a mano contra cualquier publicacion de los vecinos.
+const RESPUESTA_NORMALIZADA = 'respuesta de ejemplo';
 
 async function main() {
   const limpiar = process.argv.includes('--limpiar');
@@ -86,8 +102,9 @@ async function main() {
   const vecinos = await crearVecinos();
   let total = 0;
 
+  const idsEncontradas = [];
   for (let i = 0; i < ENCONTRADAS.length; i++) {
-    await crearPublicacion(ENCONTRADAS[i], 'ENCONTRE', vecinos[i % vecinos.length], i);
+    idsEncontradas.push(await crearPublicacion(ENCONTRADAS[i], 'ENCONTRE', vecinos[i % vecinos.length], i));
     total++;
   }
   for (let i = 0; i < PERDIDAS.length; i++) {
@@ -102,10 +119,14 @@ async function main() {
     if (!id) {
       console.log(`\nOJO: no existe la cuenta ${usuario}. Registrate en la app y volvé a correr esto.`);
     } else {
+      const mias = {};
       for (let i = 0; i < MIAS.length; i++) {
-        await crearPublicacion(MIAS[i], MIAS[i].t.startsWith('Perdí') ? 'PERDI' : 'ENCONTRE', id, i + 200, MIAS[i]);
+        mias[MIAS[i].t] = await crearPublicacion(MIAS[i], MIAS[i].t.startsWith('Perdí') ? 'PERDI' : 'ENCONTRE', id, i + 200, MIAS[i]);
       }
       console.log(`${MIAS.length} publicaciones a nombre de ${usuario} (una por estado).`);
+
+      await sembrarReclamos(id, mias, vecinos, idsEncontradas);
+      console.log('Reclamos y valoraciones de ejemplo: 1 recibido pendiente, 1 enviado pendiente, 1 caso en "Devolví" (ya valorado) y 1 en "Recuperé" (sin valorar).');
     }
   } else {
     console.log('\nTip: pasale --usuario tu.email@gmail.com para sembrar tambien "Mis publicaciones".');
@@ -225,6 +246,98 @@ async function crearPublicacion(dato, tipo, usuarioId, indice, opciones = {}) {
       [res.insertId, `https://picsum.photos/seed/hallado-${res.insertId}-${i}/800/600`, i]
     );
   }
+
+  return res.insertId;
+}
+
+// Un reclamo con los campos que importan. Los demas quedan como los deja el
+// backend cuando se crea desde la app.
+async function crearReclamo({ publicacionId, reclamanteId, tipo, estado, diasRespondido, descripcion, barrio, foto }) {
+  const barrioId = barrio ? await idPorNombre('zonas', barrio) : null;
+  const esMio = tipo === 'ES_MIO';
+  const [res] = await pool.query(
+    `INSERT INTO hallado_reclamos
+       (publicacion_id, reclamante_id, tipo, respuesta, respuesta_correcta, descripcion, foto_url,
+        barrio_id, estado, vence_en, respondido_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 48 HOUR),
+             ${diasRespondido === undefined ? 'NULL' : 'DATE_SUB(NOW(), INTERVAL ? DAY)'})`,
+    [
+      publicacionId, reclamanteId, tipo,
+      esMio ? RESPUESTA_NORMALIZADA : null, esMio ? 1 : null,
+      descripcion, foto ?? null, barrioId, estado,
+      ...(diasRespondido === undefined ? [] : [diasRespondido]),
+    ]
+  );
+  return res.insertId;
+}
+
+// Los cuatro reclamos que hacen falta para la demo de los puntos 7 y 10.
+async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
+  // 1. Recibido, pendiente: un vecino dice "Es mio" sobre la campera. Es la
+  //    publicacion que esta EN_RECLAMO: sin un reclamo pendiente de verdad,
+  //    el backend la devolveria a ABIERTA al primer vencimiento perezoso.
+  await crearReclamo({
+    publicacionId: mias['Encontré una campera de niño'],
+    reclamanteId: vecinos[0],
+    tipo: 'ES_MIO',
+    estado: 'PENDIENTE',
+    descripcion: 'Es la campera de mi hijo. Tiene el nombre bordado del lado de adentro.',
+    foto: 'https://picsum.photos/seed/hallado-reclamo-campera/800/600',
+  });
+
+  // 2. Enviado, pendiente: la persona dice "Es mio" sobre el llavero del
+  //    primer vecino, que pasa a EN_RECLAMO.
+  await crearReclamo({
+    publicacionId: idsEncontradas[0],
+    reclamanteId: usuarioId,
+    tipo: 'ES_MIO',
+    estado: 'PENDIENTE',
+    descripcion: 'El control de alarma es de un Gol Trend gris.',
+  });
+  await pool.query("UPDATE hallado_publicaciones SET estado = 'EN_RECLAMO' WHERE id = ?", [idsEncontradas[0]]);
+
+  // 3. "Devolvi": el perro salchicha, aceptado hace 2 dias. La duena ya
+  //    valoro y dejo un agradecimiento publico; la persona todavia puede
+  //    valorarla (quedan 5 dias).
+  const reclamoPerro = await crearReclamo({
+    publicacionId: mias['Encontré un perro salchicha'],
+    reclamanteId: vecinos[1],
+    tipo: 'ES_MIO',
+    estado: 'ACEPTADO',
+    diasRespondido: 2,
+    descripcion: 'Se llama Toto y responde al nombre. Tiene una mancha blanca en el pecho.',
+    foto: 'https://picsum.photos/seed/hallado-reclamo-toto/800/600',
+  });
+  await pool.query(
+    "UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL 2 DAY) WHERE id = ?",
+    [mias['Encontré un perro salchicha']]
+  );
+  await pool.query(
+    `INSERT INTO hallado_valoraciones (reclamo_id, autor_id, destinatario_id, tipo, mensaje, agradecimiento)
+     VALUES (?, ?, ?, 'POSITIVA', ?, ?)`,
+    [
+      reclamoPerro, vecinos[1], usuarioId,
+      'Lo cuidó dos días y me lo trajo hasta casa.',
+      'Gracias por cuidar a Toto como si fuera tuyo. Sos un vecino de oro.',
+    ]
+  );
+
+  // 4. "Recupere": la billetera, que un vecino encontro y devolvio ayer.
+  //    Nadie valoro todavia: es el caso para mostrar "Valorar" en la demo.
+  await crearReclamo({
+    publicacionId: mias['Perdí mi billetera en el subte'],
+    reclamanteId: vecinos[2],
+    tipo: 'LO_ENCONTRE',
+    estado: 'ACEPTADO',
+    diasRespondido: 1,
+    descripcion: 'Estaba en el piso del andén. Tiene el DNI adentro, no la abrí más que para eso.',
+    barrio: 'Belgrano',
+    foto: 'https://picsum.photos/seed/hallado-reclamo-billetera/800/600',
+  });
+  await pool.query(
+    "UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id = ?",
+    [mias['Perdí mi billetera en el subte']]
+  );
 }
 
 function preguntaPara(categoria) {
