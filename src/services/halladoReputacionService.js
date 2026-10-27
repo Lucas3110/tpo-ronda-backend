@@ -9,20 +9,28 @@
 //
 // Qué cuenta como "devolución concretada"
 // ---------------------------------------
-// Una publicación RESUELTA es un caso cerrado: el objeto llegó a su dueño.
-// Si la publicó alguien que ENCONTRÓ algo, esa persona lo devolvió. Si la
-// publicó alguien que PERDIÓ algo, esa persona lo recuperó (y lo devolvió
-// quien reclamó "Lo encontré", que se suma cuando entre el punto 7).
+// Un caso cerrado es un reclamo ACEPTADO (punto 7), y cada caso tiene dos
+// lados: alguien devolvió y alguien recuperó.
+//
+//   - Publicó algo ENCONTRADO y aceptó un "Es mío":      devolvió.
+//   - Reclamó "Es mío" y se lo aceptaron:                 recuperó.
+//   - Publicó algo PERDIDO y aceptó un "Lo encontré":     recuperó.
+//   - Reclamó "Lo encontré" y se lo aceptaron:            devolvió.
+//
+// Se cuenta sobre los reclamos aceptados y no sobre las publicaciones
+// resueltas para no depender de que las dos cosas estén siempre en sincro.
 const { pool } = require('../config/db');
 
 async function obtenerReputacion(usuarioId) {
   const [filas] = await pool.query(
     `SELECT
-        (SELECT COUNT(*) FROM hallado_publicaciones
-          WHERE usuario_id = ? AND tipo = 'ENCONTRE' AND estado = 'RESUELTA') AS devoluciones,
-        (SELECT COUNT(*) FROM hallado_publicaciones
-          WHERE usuario_id = ? AND tipo = 'PERDI' AND estado = 'RESUELTA') AS recuperos`,
-    [usuarioId, usuarioId]
+        (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
+          WHERE r.estado = 'ACEPTADO'
+            AND ((p.usuario_id = ? AND r.tipo = 'ES_MIO') OR (r.reclamante_id = ? AND r.tipo = 'LO_ENCONTRE'))) AS devoluciones,
+        (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
+          WHERE r.estado = 'ACEPTADO'
+            AND ((p.usuario_id = ? AND r.tipo = 'LO_ENCONTRE') OR (r.reclamante_id = ? AND r.tipo = 'ES_MIO'))) AS recuperos`,
+    [usuarioId, usuarioId, usuarioId, usuarioId]
   );
   return filas[0];
 }

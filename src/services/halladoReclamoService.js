@@ -308,8 +308,101 @@ async function insertarPendiente(publicacion, usuarioId, campos) {
   return { reclamo: toReclamoDto(await buscarReclamo(reclamoId), usuarioId) };
 }
 
+// ---------------------------------------------------------------
+// Responder: aceptar o rechazar
+// ---------------------------------------------------------------
+// "El publicador puede aceptar o rechazar cada reclamo."
+//
+// Aceptar cierra el caso: la publicación pasa a RESUELTA (el objeto ya tiene
+// a quién volver), se anota cuándo, y los demás reclamos pendientes de esa
+// publicación se rechazan solos porque el objeto es uno. A partir de acá
+// quien reclamó ve la dirección exacta (punto 4) y el caso entra al
+// historial (punto 10).
+//
+// Rechazar devuelve la publicación a ABIERTA si no quedó ningún otro
+// reclamo esperando: el objeto sigue sin dueño.
+
+const MOTIVO_MAX = 300;
+
+async function responder(reclamoId, usuarioId, decision, motivo = null) {
+  await vencerReclamos();
+
+  const id = validarId(reclamoId, 'id del reclamo');
+  const reclamo = await buscarReclamo(id);
+
+  if (reclamo.publicador_id !== usuarioId) {
+    throw ApiError.forbidden('Sólo el publicador puede responder este reclamo', 'NO_SOS_EL_PUBLICADOR');
+  }
+  if (reclamo.estado === 'VENCIDO') {
+    throw ApiError.conflict('Ese reclamo ya venció', 'RECLAMO_VENCIDO');
+  }
+  if (reclamo.estado !== 'PENDIENTE') {
+    throw ApiError.conflict('Ese reclamo ya fue respondido', 'RECLAMO_YA_RESPONDIDO');
+  }
+
+  const conexion = await pool.getConnection();
+  try {
+    await conexion.beginTransaction();
+
+    if (decision === 'ACEPTADO') {
+      await conexion.query(
+        "UPDATE hallado_reclamos SET estado = 'ACEPTADO', respondido_en = NOW() WHERE id = ?",
+        [id]
+      );
+      await conexion.query(
+        `UPDATE hallado_reclamos
+            SET estado = 'RECHAZADO', motivo = 'Se aceptó otro reclamo', automatico = 1, respondido_en = NOW()
+          WHERE publicacion_id = ? AND estado = 'PENDIENTE' AND id <> ?`,
+        [reclamo.publicacion_id, id]
+      );
+      await conexion.query(
+        "UPDATE hallado_publicaciones SET estado = 'RESUELTA', resuelto_en = NOW() WHERE id = ?",
+        [reclamo.publicacion_id]
+      );
+    } else {
+      await conexion.query(
+        "UPDATE hallado_reclamos SET estado = 'RECHAZADO', motivo = ?, respondido_en = NOW() WHERE id = ?",
+        [motivo, id]
+      );
+      await conexion.query(
+        `UPDATE hallado_publicaciones p SET p.estado = 'ABIERTA'
+          WHERE p.id = ? AND p.estado = 'EN_RECLAMO'
+            AND NOT EXISTS (
+              SELECT 1 FROM hallado_reclamos r
+               WHERE r.publicacion_id = p.id AND r.estado = 'PENDIENTE'
+            )`,
+        [reclamo.publicacion_id]
+      );
+    }
+
+    await conexion.commit();
+  } catch (error) {
+    await conexion.rollback();
+    throw error;
+  } finally {
+    conexion.release();
+  }
+
+  return { reclamo: toReclamoDto(await buscarReclamo(id), usuarioId) };
+}
+
+// POST /api/hallado/reclamos/:id/aceptar
+async function aceptar(reclamoId, usuarioId) {
+  return responder(reclamoId, usuarioId, 'ACEPTADO');
+}
+
+// POST /api/hallado/reclamos/:id/rechazar   { motivo? }
+async function rechazar(reclamoId, usuarioId, datos = {}) {
+  const motivo = validarTexto(datos.motivo, {
+    campo: 'El motivo', codigo: 'MOTIVO', max: MOTIVO_MAX, obligatorio: false,
+  });
+  return responder(reclamoId, usuarioId, 'RECHAZADO', motivo);
+}
+
 module.exports = {
   crear,
+  aceptar,
+  rechazar,
   vencerReclamos,
   resumenParaDetalle,
   MAX_INTENTOS,

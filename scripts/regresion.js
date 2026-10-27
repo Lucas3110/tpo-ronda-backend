@@ -1090,6 +1090,71 @@ async function main() {
   r = await pedir('POST', '/hallado/publicaciones/999999/reclamos', { bearer: martin.bearer, body: { respuesta: 'x' } });
   chequear('reclamar algo inexistente', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
 
+  // --- Aceptar y rechazar ---
+  // Sólo el publicador responde. Rechazar devuelve la publicación a ABIERTA
+  // si no quedó otro reclamo esperando; aceptar la cierra (RESUELTA), rechaza
+  // solos los demás pendientes y le muestra la dirección exacta a quien
+  // reclamó.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEsMioId}/aceptar`, { bearer: martin.bearer });
+  chequear('quien reclama no puede responderse solo', r.status === 403 && r.body?.error?.codigo === 'NO_SOS_EL_PUBLICADOR', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEsMioId}/rechazar`, { bearer: sofia.bearer, body: { motivo: 'La foto no coincide con lo que encontré' } });
+  chequear('rechazar un reclamo', r.status === 200 && r.body.reclamo?.estado === 'RECHAZADO', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('con el motivo del publicador', r.body.reclamo?.motivo?.includes('no coincide') && r.body.reclamo?.automatico === false);
+  chequear('y la fecha de respuesta', r.body.reclamo?.respondidoEn !== null && r.body.reclamo?.horasParaVencer === null);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEsMioId}/rechazar`, { bearer: sofia.bearer });
+  chequear('responder dos veces', r.status === 409 && r.body?.error?.codigo === 'RECLAMO_YA_RESPONDIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('sin reclamos pendientes vuelve a ABIERTA', r.body.publicacion?.estado === 'ABIERTA', '| ' + r.body.publicacion?.estado);
+  chequear('el rechazado puede volver a intentar', r.body.acciones?.puedeReclamar === true && r.body.publicacion?.intentosRestantes === 1);
+  chequear('y ve por qué lo rechazaron', r.body.publicacion?.miReclamo?.motivo?.includes('no coincide'));
+  const devolucionesAntes = r.body.publicacion?.publicador?.reputacion?.devoluciones;
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: martin.bearer, body: { respuesta: 'azul', descripcion: 'Ahora con la foto buena', fotoUrl: 'https://example.com/mi-llavero-2.jpg' } });
+  chequear('tercer intento, correcto', r.status === 201, '| ' + r.status + ' ' + r.body?.error?.codigo);
+  const reclamoAceptadoId = r.body.reclamo?.id;
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/aceptar`, { bearer: sofia.bearer });
+  chequear('aceptar un reclamo', r.status === 200 && r.body.reclamo?.estado === 'ACEPTADO', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('la publicación queda RESUELTA', r.body.reclamo?.publicacion?.estado === 'RESUELTA', '| ' + r.body.reclamo?.publicacion?.estado);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('con el reclamo aceptado se ve la dirección exacta', r.body.publicacion?.direccion === 'Thames 1500', '| ' + r.body.publicacion?.direccion);
+  chequear('y ya no se puede reclamar', r.body.acciones?.puedeReclamar === false);
+  chequear('la devolución suma reputación al publicador', r.body.publicacion?.publicador?.reputacion?.devoluciones === devolucionesAntes + 1, '| ' + r.body.publicacion?.publicador?.reputacion?.devoluciones);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: carla.bearer });
+  chequear('para los demás la dirección sigue oculta', r.body.publicacion?.direccion === null && r.body.publicacion?.direccionOculta === true);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'azul' } });
+  chequear('sobre una resuelta no se reclama', r.status === 409 && (r.body?.error?.codigo === 'PUBLICACION_NO_RECLAMABLE' || r.body?.error?.codigo === 'SIN_INTENTOS'), '| ' + r.body?.error?.codigo);
+
+  // Aceptar uno rechaza solos a los demás pendientes de esa publicación.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoLoEncontreId}/aceptar`, { bearer: sofia.bearer });
+  chequear('aceptar un "Lo encontré"', r.status === 200 && r.body.reclamo?.estado === 'ACEPTADO', '| ' + r.status);
+
+  r = await pedir('GET', `/hallado/publicaciones/${perdidaReclamoId}`, { bearer: carla.bearer });
+  chequear('el otro pendiente se rechazó solo', r.body.publicacion?.miReclamo?.estado === 'RECHAZADO' && r.body.publicacion?.miReclamo?.motivo === 'Se aceptó otro reclamo', '| ' + r.body.publicacion?.miReclamo?.motivo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoCarlaId}/aceptar`, { bearer: sofia.bearer });
+  chequear('un reclamo rechazado ya no se acepta', r.status === 409 && r.body?.error?.codigo === 'RECLAMO_YA_RESPONDIDO', '| ' + r.body?.error?.codigo);
+
+  // Quien devolvió con "Lo encontré" suma una devolución; se mira en una
+  // publicación suya, que es donde el detalle muestra la reputación.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: martin.bearer, body: { ...basePerdi, titulo: 'Publicación de Martín para ver su reputación' } });
+  const deMartinId = r.body.publicacion?.id;
+  r = await pedir('GET', `/hallado/publicaciones/${deMartinId}`, { bearer: carla.bearer });
+  chequear('quien devolvió suma una devolución', r.body.publicacion?.publicador?.reputacion?.devoluciones >= 1, '| ' + r.body.publicacion?.publicador?.reputacion?.devoluciones);
+  chequear('y quien recuperó, un recupero', r.body.publicacion?.publicador?.reputacion?.recuperos >= 1, '| ' + r.body.publicacion?.publicador?.reputacion?.recuperos);
+  await pedir('DELETE', `/hallado/publicaciones/${deMartinId}`, { bearer: martin.bearer });
+
+  r = await pedir('POST', '/hallado/reclamos/999999/aceptar', { bearer: sofia.bearer });
+  chequear('responder un reclamo inexistente', r.status === 404 && r.body?.error?.codigo === 'RECLAMO_NO_ENCONTRADO', '| ' + r.body?.error?.codigo);
+
+  await pedir('DELETE', `/hallado/publicaciones/${perdidaReclamoId}`, { bearer: sofia.bearer });
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });

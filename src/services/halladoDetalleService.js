@@ -10,8 +10,8 @@
 //
 // La regla que el enunciado marca como importante: "la dirección exacta no
 // se muestra hasta que el reclamo sea aceptado". Acá se resuelve con
-// `verDireccion`, que hoy es verdadero sólo para el publicador. Cuando entre
-// el punto 7, también lo será para quien tenga un reclamo aceptado.
+// `verDireccion`: la ve el publicador y quien tenga un reclamo ACEPTADO
+// sobre esta publicación (punto 7). Nadie más.
 const ApiError = require('../utils/ApiError');
 const { toDetalleDto } = require('../dtos/halladoDto');
 const { pool } = require('../config/db');
@@ -58,7 +58,7 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
 
   const esPublicador = usuarioId !== null && publicacion.usuario_id === usuarioId;
 
-  // Las fotos, el publicador y su reputación no dependen entre sí: van en
+  // Las fotos, el publicador, su reputación y los reclamos no dependen entre sí: van en
   // paralelo y la respuesta tarda lo que tarda la más lenta, no la suma.
   const [fotosPorPublicacion, publicador, reputacion, seguimiento, misReclamos] = await Promise.all([
     buscarFotos([id]),
@@ -94,7 +94,7 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
 
   return {
     publicacion: toDetalleDto(publicacion, fotosPorPublicacion.get(id) ?? [], {
-      verDireccion: esPublicador,
+      verDireccion: esPublicador || misReclamos.miReclamo?.estado === 'ACEPTADO',
       publicador,
       reputacion,
       seguimiento,

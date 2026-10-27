@@ -10,4 +10,16 @@ async function crear(req, res) {
   res.status(201).json(dto);
 }
 
-module.exports = { crear };
+// POST /api/hallado/reclamos/:id/aceptar
+async function aceptar(req, res) {
+  const dto = await servicio.aceptar(req.params.id, req.usuario.id);
+  res.status(200).json(dto);
+}
+
+// POST /api/hallado/reclamos/:id/rechazar   { motivo? }
+async function rechazar(req, res) {
+  const dto = await servicio.rechazar(req.params.id, req.usuario.id, req.body);
+  res.status(200).json(dto);
+}
+
+module.exports = { crear, aceptar, rechazar };
