@@ -42,6 +42,12 @@ module.exports = {
     horasDeVigencia: Number(leer('OFERTA_VIGENCIA_HORAS', 72)),
   },
 
+  // Hallado, punto 7: cuánto espera un reclamo la respuesta del publicador
+  // antes de vencer solo.
+  reclamo: {
+    horasDeVigencia: Number(leer('RECLAMO_VIGENCIA_HORAS', 48)),
+  },
+
   mail: {
     modo: leer('MAIL_MODE', 'console'), // 'console' | 'smtp'
     host: process.env.SMTP_HOST,

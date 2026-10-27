@@ -90,13 +90,76 @@ function toPublicacionPropiaDto(fila, fotos = []) {
 // publicó. Es la misma publicación que en los resultados, con el publicador
 // ampliado: ahí alcanza con el nombre, acá hace falta la reputación y lo que
 // se necesita para ir a su perfil público.
-function toDetalleDto(fila, fotos, { verDireccion = false, publicador, reputacion, seguimiento } = {}) {
+function toDetalleDto(fila, fotos, { verDireccion = false, publicador, reputacion, seguimiento, reclamos } = {}) {
   return {
     ...toPublicacionDto(fila, fotos, { verDireccion }),
     publicador: toPublicadorDto(publicador, reputacion),
     // Para pintar el botón de seguir sin otro pedido.
     laSigo: Boolean(seguimiento?.laSigo),
     seguidores: Number(seguimiento?.seguidores ?? 0),
+    // Punto 7: el último reclamo de quien mira sobre esta publicación,
+    // cuántos intentos le quedan y, para el publicador, cuántos esperan.
+    miReclamo: reclamos?.miReclamo ? toReclamoResumenDto(reclamos.miReclamo) : null,
+    intentosRestantes: Number(reclamos?.intentosRestantes ?? 0),
+    reclamosPendientes: Number(reclamos?.pendientes ?? 0),
+  };
+}
+
+// Un reclamo completo, como lo ven las dos partes. Quién mira decide los
+// flags del final: la app los usa para saber qué botones pintar.
+function toReclamoDto(fila, usuarioId = null) {
+  const soyElReclamante = usuarioId !== null && fila.reclamante_id === usuarioId;
+  const soyElPublicador = usuarioId !== null && fila.publicador_id === usuarioId;
+
+  return {
+    id: fila.id,
+    tipo: fila.tipo,
+    estado: fila.estado,
+
+    descripcion: fila.descripcion,
+    fotoUrl: fila.foto_url,
+    barrio: fila.barrio_id ? { id: fila.barrio_id, nombre: fila.barrio_nombre } : null,
+
+    // Lo que contestó a la pregunta de verificación. La respuesta CORRECTA
+    // sigue sin salir: esto es lo que escribió quien reclama.
+    respuesta: fila.respuesta,
+    respuestaCorrecta: fila.respuesta_correcta === null ? null : Boolean(fila.respuesta_correcta),
+
+    motivo: fila.motivo,
+    automatico: Boolean(fila.automatico),
+
+    creadoEn: fila.creado_en,
+    venceEn: fila.vence_en,
+    respondidoEn: fila.respondido_en,
+    // Para "vence en 36 h" sin que la app haga cuentas con zonas horarias.
+    horasParaVencer:
+      fila.estado === 'PENDIENTE' ? Math.ceil(Number(fila.minutos_para_vencer) / 60) : null,
+
+    publicacion: {
+      id: fila.publicacion_id,
+      tipo: fila.pub_tipo,
+      titulo: fila.pub_titulo,
+      estado: fila.pub_estado,
+      portada: fila.pub_portada ?? null,
+    },
+    reclamante: { id: fila.reclamante_id, nombre: fila.reclamante_nombre },
+    publicador: { id: fila.publicador_id, nombre: fila.publicador_nombre },
+
+    soyElReclamante,
+    soyElPublicador,
+    esperaMiRespuesta: soyElPublicador && fila.estado === 'PENDIENTE',
+  };
+}
+
+// Lo mínimo del reclamo para el detalle de la publicación.
+function toReclamoResumenDto(fila) {
+  return {
+    id: fila.id,
+    tipo: fila.tipo,
+    estado: fila.estado,
+    motivo: fila.motivo,
+    creadoEn: fila.creado_en,
+    venceEn: fila.vence_en,
   };
 }
 
@@ -144,4 +207,6 @@ module.exports = {
   toDetalleDto,
   toPublicadorDto,
   toReputacionDto,
+  toReclamoDto,
+  toReclamoResumenDto,
 };

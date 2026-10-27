@@ -18,6 +18,7 @@ const { pool } = require('../config/db');
 const { SELECT_PUBLICACION, buscarFotos } = require('./halladoPublicarService');
 const { obtenerReputacion } = require('./halladoReputacionService');
 const { estadoDeSeguimiento } = require('./halladoSeguirService');
+const reclamos = require('./halladoReclamoService');
 
 // Sólo se puede reclamar sobre algo que todavía está en juego. Una RESUELTA
 // ya encontró a su dueño y una VENCIDA quedó sin renovar.
@@ -45,6 +46,10 @@ async function buscarPublicador(usuarioId) {
 async function obtenerDetalle(publicacionId, usuarioId = null) {
   const id = validarId(publicacionId);
 
+  // Antes de leer, lo que venció se marca: si no, el detalle mostraría un
+  // reclamo pendiente que ya no lo está.
+  await reclamos.vencerReclamos();
+
   const [filas] = await pool.query(`${SELECT_PUBLICACION} WHERE p.id = ? LIMIT 1`, [id]);
   const publicacion = filas[0];
   if (!publicacion) {
@@ -55,11 +60,12 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
 
   // Las fotos, el publicador y su reputación no dependen entre sí: van en
   // paralelo y la respuesta tarda lo que tarda la más lenta, no la suma.
-  const [fotosPorPublicacion, publicador, reputacion, seguimiento] = await Promise.all([
+  const [fotosPorPublicacion, publicador, reputacion, seguimiento, misReclamos] = await Promise.all([
     buscarFotos([id]),
     buscarPublicador(publicacion.usuario_id),
     obtenerReputacion(publicacion.usuario_id),
     estadoDeSeguimiento(id, usuarioId),
+    reclamos.resumenParaDetalle(id, usuarioId),
   ]);
 
   const estado = publicacion.estado_efectivo ?? publicacion.estado;
@@ -69,7 +75,14 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
   // habría que repetirlo en los dos lados y se desincronizarían.
   const acciones = {
     esPublicador,
-    puedeReclamar: usuarioId !== null && !esPublicador && ESTADOS_RECLAMABLES.includes(estado),
+    // Punto 7: además de que la publicación esté en juego, hacen falta
+    // intentos y no tener ya un reclamo esperando respuesta.
+    puedeReclamar:
+      usuarioId !== null
+      && !esPublicador
+      && ESTADOS_RECLAMABLES.includes(estado)
+      && misReclamos.intentosRestantes > 0
+      && misReclamos.miReclamo?.estado !== 'PENDIENTE',
     // Qué dice el botón: en algo encontrado un tercero indica "Es mío"; en
     // algo perdido, "Lo encontré". Viaja siempre, aunque no se pueda
     // reclamar, para que la app sepa qué texto mostrar atenuado.
@@ -85,6 +98,7 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
       publicador,
       reputacion,
       seguimiento,
+      reclamos: misReclamos,
     }),
     acciones,
   };
