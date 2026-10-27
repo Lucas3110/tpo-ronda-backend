@@ -8,6 +8,7 @@ const servicio = require('../services/halladoPublicarService');
 const fotos = require('../services/halladoFotoService');
 const buscador = require('../services/halladoBuscarService');
 const detalle = require('../services/halladoDetalleService');
+const seguimiento = require('../services/halladoSeguirService');
 
 async function categorias(req, res) {
   res.status(200).json(await servicio.listarCategorias());
@@ -38,6 +39,18 @@ async function buscar(req, res) {
 async function obtenerDetalle(req, res) {
   const usuarioId = req.usuario ? req.usuario.id : null;
   const dto = await detalle.obtenerDetalle(req.params.id, usuarioId);
+  res.status(200).json(dto);
+}
+
+// POST /api/hallado/publicaciones/:id/seguir
+async function seguir(req, res) {
+  const dto = await seguimiento.seguir(req.params.id, req.usuario.id);
+  res.status(200).json(dto);
+}
+
+// DELETE /api/hallado/publicaciones/:id/seguir
+async function dejarDeSeguir(req, res) {
+  const dto = await seguimiento.dejarDeSeguir(req.params.id, req.usuario.id);
   res.status(200).json(dto);
 }
 
@@ -77,6 +90,8 @@ module.exports = {
   subirFoto,
   barrios,
   obtenerDetalle,
+  seguir,
+  dejarDeSeguir,
   crear,
   editar,
   mias,

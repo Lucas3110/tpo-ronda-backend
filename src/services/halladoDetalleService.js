@@ -17,6 +17,7 @@ const { toDetalleDto } = require('../dtos/halladoDto');
 const { pool } = require('../config/db');
 const { SELECT_PUBLICACION, buscarFotos } = require('./halladoPublicarService');
 const { obtenerReputacion } = require('./halladoReputacionService');
+const { estadoDeSeguimiento } = require('./halladoSeguirService');
 
 // Sólo se puede reclamar sobre algo que todavía está en juego. Una RESUELTA
 // ya encontró a su dueño y una VENCIDA quedó sin renovar.
@@ -54,10 +55,11 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
 
   // Las fotos, el publicador y su reputación no dependen entre sí: van en
   // paralelo y la respuesta tarda lo que tarda la más lenta, no la suma.
-  const [fotosPorPublicacion, publicador, reputacion] = await Promise.all([
+  const [fotosPorPublicacion, publicador, reputacion, seguimiento] = await Promise.all([
     buscarFotos([id]),
     buscarPublicador(publicacion.usuario_id),
     obtenerReputacion(publicacion.usuario_id),
+    estadoDeSeguimiento(id, usuarioId),
   ]);
 
   const estado = publicacion.estado_efectivo ?? publicacion.estado;
@@ -72,6 +74,9 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
     // algo perdido, "Lo encontré". Viaja siempre, aunque no se pueda
     // reclamar, para que la app sepa qué texto mostrar atenuado.
     reclamo: publicacion.tipo === 'ENCONTRE' ? 'ES_MIO' : 'LO_ENCONTRE',
+    // Seguir lo propio no tiene sentido: las novedades ya le llegan por
+    // ser el publicador.
+    puedeSeguir: usuarioId !== null && !esPublicador,
   };
 
   return {
@@ -79,6 +84,7 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
       verDireccion: esPublicador,
       publicador,
       reputacion,
+      seguimiento,
     }),
     acciones,
   };

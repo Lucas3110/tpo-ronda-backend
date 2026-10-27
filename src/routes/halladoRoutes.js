@@ -35,6 +35,11 @@ router.get('/publicaciones/mias', autenticar, controller.mias);
 // que ve un tercero.
 router.get('/publicaciones/:id', autenticarOpcional, controller.obtenerDetalle);
 
+// Punto 4: seguir una publicación para enterarse de sus novedades. La lista
+// de seguidas y el aviso de novedad son del punto 9.
+router.post('/publicaciones/:id/seguir', autenticar, controller.seguir);
+router.delete('/publicaciones/:id/seguir', autenticar, controller.dejarDeSeguir);
+
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);
 router.post('/publicaciones/:id/renovar', autenticar, controller.renovar);
