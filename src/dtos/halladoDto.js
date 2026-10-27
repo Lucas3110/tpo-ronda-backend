@@ -86,6 +86,41 @@ function toPublicacionPropiaDto(fila, fotos = []) {
   };
 }
 
+// El detalle del punto 4: la publicación completa más los datos de quien la
+// publicó. Es la misma publicación que en los resultados, con el publicador
+// ampliado: ahí alcanza con el nombre, acá hace falta la reputación y lo que
+// se necesita para ir a su perfil público.
+function toDetalleDto(fila, fotos, { verDireccion = false, publicador, reputacion } = {}) {
+  return {
+    ...toPublicacionDto(fila, fotos, { verDireccion }),
+    publicador: toPublicadorDto(publicador, reputacion),
+  };
+}
+
+// Quién publicó. A propósito NO lleva email ni teléfono: el enunciado dice que
+// el teléfono se muestra recién con un reclamo aceptado, y eso lo decide la
+// configuración del punto 2.
+function toPublicadorDto(usuario, reputacion) {
+  if (!usuario) return null;
+  return {
+    id: usuario.id,
+    nombre: usuario.nombre,
+    fotoUrl: usuario.foto_url ?? null,
+    miembroDesde: usuario.creado_en,
+    reputacion: toReputacionDto(reputacion),
+  };
+}
+
+// La reputación de Hallado. Cuenta casos cerrados, no estrellas: en esta app
+// no se califica con puntaje sino con una valoración positiva o negativa
+// (punto 10), que se va a sumar acá cuando exista.
+function toReputacionDto(fila) {
+  return {
+    devoluciones: Number(fila?.devoluciones ?? 0),
+    recuperos: Number(fila?.recuperos ?? 0),
+  };
+}
+
 // MySQL devuelve un Date para las columnas DATE. Lo pasamos a 'YYYY-MM-DD'
 // usando los getters locales y no toISOString(), que convierte a UTC y puede
 // correr la fecha un día para atrás.
@@ -103,4 +138,7 @@ module.exports = {
   toBarrioDto,
   toPublicacionDto,
   toPublicacionPropiaDto,
+  toDetalleDto,
+  toPublicadorDto,
+  toReputacionDto,
 };

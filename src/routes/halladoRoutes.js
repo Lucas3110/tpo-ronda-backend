@@ -6,6 +6,7 @@
 const express = require('express');
 const controller = require('../controllers/halladoPublicacionController');
 const { autenticar } = require('../middlewares/auth');
+const { autenticarOpcional } = require('../middlewares/authOpcional');
 
 const router = express.Router();
 
@@ -28,6 +29,11 @@ router.post('/publicaciones', autenticar, controller.crear);
 // "Mis publicaciones" va ANTES de /:id. Si no, Express toma "mias" como un id
 // y la ruta nunca llega acá.
 router.get('/publicaciones/mias', autenticar, controller.mias);
+
+// Punto 4: el detalle. Público con token opcional: la dirección exacta y las
+// acciones disponibles dependen de quién mira, y sin sesión se ve lo mismo
+// que ve un tercero.
+router.get('/publicaciones/:id', autenticarOpcional, controller.obtenerDetalle);
 
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);

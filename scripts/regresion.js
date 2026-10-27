@@ -916,6 +916,53 @@ async function main() {
   r = await pedir('GET', `/hallado/publicaciones?queTePaso=PERDI&q=${marca}`);
   chequear('las borradas desaparecen de la búsqueda', r.body.paginado.total === 0, '| ' + r.body.paginado?.total);
 
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 4 · Detalle');
+  // Lo que se ve depende de quién mira: el publicador ve la dirección exacta
+  // y accede a la gestión; un tercero ve todo menos la dirección y puede
+  // reclamar; sin sesión se ve lo mismo que un tercero, sin acciones.
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('detalle como tercero', r.status === 200 && r.body.publicacion?.id === hallazgoId, '| ' + r.status);
+  chequear('trae la galería completa', r.body.publicacion?.fotos?.length === 2, '| ' + r.body.publicacion?.fotos?.length);
+  chequear('trae categoría, barrio, fecha y franja',
+    r.body.publicacion?.categoria?.nombre && r.body.publicacion?.barrio?.nombre
+      && r.body.publicacion?.fechaSuceso && r.body.publicacion?.franjaHoraria === 'TARDE');
+  chequear('trae el estado', r.body.publicacion?.estado === 'ABIERTA', '| ' + r.body.publicacion?.estado);
+  chequear('la dirección exacta NO sale para un tercero', r.body.publicacion?.direccion === null && r.body.publicacion?.direccionOculta === true);
+  chequear('las coordenadas sí', r.body.publicacion?.coordenadas?.lat === -34.5885);
+  chequear('la pregunta de verificación sí', typeof r.body.publicacion?.preguntaVerificacion === 'string');
+  chequear('la respuesta de verificación nunca', JSON.stringify(r.body).includes('respuestaVerificacion') === false && JSON.stringify(r.body).includes('respuesta_verificacion') === false);
+  chequear('publicador con nombre', r.body.publicacion?.publicador?.id === sofia.id && typeof r.body.publicacion?.publicador?.nombre === 'string');
+  chequear('publicador con reputación', typeof r.body.publicacion?.publicador?.reputacion?.devoluciones === 'number');
+  chequear('publicador sin email ni teléfono', !('email' in (r.body.publicacion?.publicador ?? {})) && !('telefono' in (r.body.publicacion?.publicador ?? {})));
+  chequear('un tercero puede reclamar "Es mío"', r.body.acciones?.puedeReclamar === true && r.body.acciones?.reclamo === 'ES_MIO', '| ' + r.body.acciones?.reclamo);
+  chequear('y no es el publicador', r.body.acciones?.esPublicador === false);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
+  chequear('el publicador ve la dirección exacta', r.body.publicacion?.direccion === 'Thames 1500', '| ' + r.body.publicacion?.direccion);
+  chequear('el publicador accede a la gestión', r.body.acciones?.esPublicador === true);
+  chequear('y no puede reclamar lo suyo', r.body.acciones?.puedeReclamar === false);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`);
+  chequear('sin sesión se ve el detalle', r.status === 200, '| ' + r.status);
+  chequear('sin sesión no hay dirección', r.body.publicacion?.direccion === null);
+  chequear('sin sesión no hay acciones', r.body.acciones?.puedeReclamar === false && r.body.acciones?.esPublicador === false);
+
+  // En una pérdida el botón del tercero es "Lo encontré" y no hay pregunta.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: basePerdi });
+  const perdidaDetalleId = r.body.publicacion?.id;
+  r = await pedir('GET', `/hallado/publicaciones/${perdidaDetalleId}`, { bearer: martin.bearer });
+  chequear('en una pérdida la acción es "Lo encontré"', r.body.acciones?.reclamo === 'LO_ENCONTRE', '| ' + r.body.acciones?.reclamo);
+  chequear('una pérdida no tiene pregunta', r.body.publicacion?.preguntaVerificacion === null);
+  await pedir('DELETE', `/hallado/publicaciones/${perdidaDetalleId}`, { bearer: sofia.bearer });
+
+  r = await pedir('GET', '/hallado/publicaciones/999999', { bearer: martin.bearer });
+  chequear('detalle inexistente', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/publicaciones/abc', { bearer: martin.bearer });
+  chequear('id inválido', r.status === 400 && r.body?.error?.codigo === 'ID_INVALIDO', '| ' + r.body?.error?.codigo);
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });

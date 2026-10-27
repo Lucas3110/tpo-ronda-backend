@@ -7,6 +7,7 @@
 const servicio = require('../services/halladoPublicarService');
 const fotos = require('../services/halladoFotoService');
 const buscador = require('../services/halladoBuscarService');
+const detalle = require('../services/halladoDetalleService');
 
 async function categorias(req, res) {
   res.status(200).json(await servicio.listarCategorias());
@@ -28,6 +29,15 @@ async function subirFoto(req, res) {
 // El buscador del punto 3. Ojo con queTePaso: devuelve el tipo OPUESTO.
 async function buscar(req, res) {
   const dto = await buscador.buscar(req.query);
+  res.status(200).json(dto);
+}
+
+// GET /api/hallado/publicaciones/:id
+// Público con token opcional: req.usuario puede ser null. Quién mira decide
+// si sale la dirección exacta y qué acciones hay.
+async function obtenerDetalle(req, res) {
+  const usuarioId = req.usuario ? req.usuario.id : null;
+  const dto = await detalle.obtenerDetalle(req.params.id, usuarioId);
   res.status(200).json(dto);
 }
 
@@ -66,6 +76,7 @@ module.exports = {
   buscar,
   subirFoto,
   barrios,
+  obtenerDetalle,
   crear,
   editar,
   mias,
