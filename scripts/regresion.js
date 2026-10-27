@@ -1155,6 +1155,52 @@ async function main() {
 
   await pedir('DELETE', `/hallado/publicaciones/${perdidaReclamoId}`, { bearer: sofia.bearer });
 
+  // --- Mis reclamos ---
+  // Enviados y recibidos en un mismo lugar. Los rechazados solos por
+  // respuesta incorrecta no aparecen entre los recibidos: el publicador
+  // nunca tuvo que decidir nada sobre ellos.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...baseEncontre, titulo: 'Paraguas negro con mango de madera' } });
+  const paraguasId = r.body.publicacion?.id;
+  r = await pedir('POST', `/hallado/publicaciones/${paraguasId}/reclamos`, { bearer: martin.bearer, body: { respuesta: 'azul' } });
+  const reclamoParaguasId = r.body.reclamo?.id;
+  await pedir('POST', `/hallado/publicaciones/${paraguasId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'violeta' } });
+
+  r = await pedir('GET', '/hallado/reclamos/mios');
+  chequear('mis reclamos sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/reclamos/mios', { bearer: sofia.bearer });
+  chequear('mis reclamos: recibidos', r.status === 200 && Array.isArray(r.body.recibidos) && Array.isArray(r.body.enviados), '| ' + r.status);
+  const recibidoDeMartin = r.body.recibidos?.find((x) => x.id === reclamoParaguasId);
+  chequear('el pendiente de Martín está entre los recibidos', recibidoDeMartin?.estado === 'PENDIENTE' && recibidoDeMartin?.esperaMiRespuesta === true);
+  chequear('los pendientes van primero', r.body.recibidos?.[0]?.estado === 'PENDIENTE', '| ' + r.body.recibidos?.[0]?.estado);
+  chequear('el rechazado solo por respuesta incorrecta no aparece', r.body.recibidos?.every((x) => !(x.automatico && x.respuestaCorrecta === false)));
+  chequear('el resumen cuenta los que esperan', r.body.resumen?.recibidosPendientes >= 1, '| ' + r.body.resumen?.recibidosPendientes);
+  chequear('los recibidos traen a quien reclama y la publicación', recibidoDeMartin?.reclamante?.nombre && recibidoDeMartin?.publicacion?.titulo?.includes('Paraguas'));
+
+  r = await pedir('GET', '/hallado/reclamos/mios', { bearer: martin.bearer });
+  const enviado = r.body.enviados?.find((x) => x.id === reclamoParaguasId);
+  chequear('mis reclamos: enviados', enviado?.estado === 'PENDIENTE' && enviado?.soyElReclamante === true && enviado?.esperaMiRespuesta === false);
+  chequear('el enviado dice cuánto le queda', enviado?.horasParaVencer > 0, '| ' + enviado?.horasParaVencer);
+  chequear('los aceptados también se listan', r.body.enviados?.some((x) => x.estado === 'ACEPTADO'));
+
+  r = await pedir('GET', '/hallado/reclamos/mios', { bearer: carla.bearer });
+  chequear('quien erró ve su intento rechazado', r.body.enviados?.some((x) => x.publicacion?.id === paraguasId && x.estado === 'RECHAZADO' && x.automatico === true));
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoParaguasId}`, { bearer: carla.bearer });
+  chequear('un reclamo ajeno no se ve', r.status === 403 && r.body?.error?.codigo === 'NO_TE_CORRESPONDE', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoParaguasId}`, { bearer: sofia.bearer });
+  chequear('el publicador ve el reclamo', r.status === 200 && r.body.reclamo?.soyElPublicador === true);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoParaguasId}`, { bearer: martin.bearer });
+  chequear('quien reclamó también', r.status === 200 && r.body.reclamo?.soyElReclamante === true);
+
+  r = await pedir('GET', '/hallado/reclamos/999999', { bearer: martin.bearer });
+  chequear('reclamo inexistente', r.status === 404 && r.body?.error?.codigo === 'RECLAMO_NO_ENCONTRADO', '| ' + r.body?.error?.codigo);
+
+  await pedir('POST', `/hallado/reclamos/${reclamoParaguasId}/rechazar`, { bearer: sofia.bearer });
+  await pedir('DELETE', `/hallado/publicaciones/${paraguasId}`, { bearer: sofia.bearer });
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });

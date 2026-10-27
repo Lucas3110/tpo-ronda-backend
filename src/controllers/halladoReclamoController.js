@@ -22,4 +22,16 @@ async function rechazar(req, res) {
   res.status(200).json(dto);
 }
 
-module.exports = { crear, aceptar, rechazar };
+// GET /api/hallado/reclamos/mios
+async function mios(req, res) {
+  const dto = await servicio.listarMios(req.usuario.id);
+  res.status(200).json(dto);
+}
+
+// GET /api/hallado/reclamos/:id
+async function obtener(req, res) {
+  const dto = await servicio.obtener(req.params.id, req.usuario.id);
+  res.status(200).json(dto);
+}
+
+module.exports = { crear, aceptar, rechazar, mios, obtener };

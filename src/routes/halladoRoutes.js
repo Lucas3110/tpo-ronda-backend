@@ -45,6 +45,11 @@ router.delete('/publicaciones/:id/seguir', autenticar, controller.dejarDeSeguir)
 // "Es mío" sobre algo encontrado, "Lo encontré" sobre algo perdido.
 router.post('/publicaciones/:id/reclamos', autenticar, reclamos.crear);
 
+// "Mis reclamos": los que envié y los que recibí, en un mismo lugar. Va
+// ANTES de /reclamos/:id por la misma razón que /publicaciones/mias.
+router.get('/reclamos/mios', autenticar, reclamos.mios);
+router.get('/reclamos/:id', autenticar, reclamos.obtener);
+
 // El publicador acepta o rechaza cada reclamo.
 router.post('/reclamos/:id/aceptar', autenticar, reclamos.aceptar);
 router.post('/reclamos/:id/rechazar', autenticar, reclamos.rechazar);
