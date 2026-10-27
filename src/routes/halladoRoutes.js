@@ -5,6 +5,7 @@
 // pertenece a qué entrega.
 const express = require('express');
 const controller = require('../controllers/halladoPublicacionController');
+const reclamos = require('../controllers/halladoReclamoController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -39,6 +40,10 @@ router.get('/publicaciones/:id', autenticarOpcional, controller.obtenerDetalle);
 // de seguidas y el aviso de novedad son del punto 9.
 router.post('/publicaciones/:id/seguir', autenticar, controller.seguir);
 router.delete('/publicaciones/:id/seguir', autenticar, controller.dejarDeSeguir);
+
+// --- Punto 7: reclamos (todo privado) ---
+// "Es mío" sobre algo encontrado, "Lo encontré" sobre algo perdido.
+router.post('/publicaciones/:id/reclamos', autenticar, reclamos.crear);
 
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);

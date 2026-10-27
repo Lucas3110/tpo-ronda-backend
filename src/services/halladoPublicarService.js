@@ -566,4 +566,6 @@ module.exports = {
   SELECT_PUBLICACION,
   buscarFotos,
   normalizarRespuesta,
+  // El punto 7 valida la foto de un reclamo con la misma regla.
+  validarFotos,
 };

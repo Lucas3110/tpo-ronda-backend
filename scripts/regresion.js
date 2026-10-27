@@ -998,6 +998,98 @@ async function main() {
   r = await pedir('POST', '/hallado/publicaciones/999999/seguir', { bearer: martin.bearer });
   chequear('seguir algo inexistente', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
 
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 7 · Reclamos');
+  // "Es mío" contesta la pregunta de verificación; la compara el backend.
+  // Cada persona tiene 3 intentos por publicación y una respuesta incorrecta
+  // gasta uno.
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { body: { respuesta: 'azul' } });
+  chequear('reclamar sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: sofia.bearer, body: { respuesta: 'azul' } });
+  chequear('reclamar lo propio se rechaza', r.status === 400 && r.body?.error?.codigo === 'ES_TU_PUBLICACION', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: martin.bearer, body: {} });
+  chequear('"Es mío" sin respuesta', r.status === 400 && r.body?.error?.codigo === 'RESPUESTA_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: martin.bearer, body: { respuesta: 'rojo' } });
+  chequear('respuesta incorrecta', r.status === 400 && r.body?.error?.codigo === 'RESPUESTA_INCORRECTA', '| ' + r.body?.error?.codigo);
+  chequear('y avisa cuántos intentos quedan', r.body?.error?.mensaje?.includes('2 intentos'), '| ' + r.body?.error?.mensaje);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('el detalle cuenta el intento gastado', r.body.publicacion?.intentosRestantes === 2, '| ' + r.body.publicacion?.intentosRestantes);
+  chequear('y muestra el reclamo rechazado', r.body.publicacion?.miReclamo?.estado === 'RECHAZADO', '| ' + r.body.publicacion?.miReclamo?.estado);
+  chequear('todavía puede reclamar', r.body.acciones?.puedeReclamar === true);
+  chequear('la publicación sigue ABIERTA', r.body.publicacion?.estado === 'ABIERTA', '| ' + r.body.publicacion?.estado);
+
+  // La comparación tolera mayúsculas, espacios y acentos.
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, {
+    bearer: martin.bearer,
+    body: { respuesta: '  Azul ', descripcion: 'Tiene una llave con cinta roja', fotoUrl: 'https://example.com/mi-llavero.jpg' },
+  });
+  chequear('"Es mío" con la respuesta correcta', r.status === 201 && r.body.reclamo?.estado === 'PENDIENTE', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  const reclamoEsMioId = r.body.reclamo?.id;
+  chequear('es de tipo ES_MIO', r.body.reclamo?.tipo === 'ES_MIO');
+  chequear('registra que contestó bien', r.body.reclamo?.respuestaCorrecta === true);
+  chequear('guarda descripción y foto', r.body.reclamo?.descripcion?.includes('cinta') && r.body.reclamo?.fotoUrl?.endsWith('.jpg'));
+  chequear('vence a las 48 horas', r.body.reclamo?.horasParaVencer > 0 && r.body.reclamo?.horasParaVencer <= 48, '| ' + r.body.reclamo?.horasParaVencer);
+  chequear('trae la publicación resumida', r.body.reclamo?.publicacion?.id === hallazgoId && r.body.reclamo?.publicacion?.estado === 'EN_RECLAMO', '| ' + r.body.reclamo?.publicacion?.estado);
+  chequear('trae las dos partes', r.body.reclamo?.reclamante?.id === martin.id && r.body.reclamo?.publicador?.id === sofia.id);
+  chequear('sabe quién mira', r.body.reclamo?.soyElReclamante === true && r.body.reclamo?.soyElPublicador === false);
+  chequear('la respuesta correcta no sale', JSON.stringify(r.body).includes('respuestaVerificacion') === false);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('la publicación pasa a EN_RECLAMO', r.body.publicacion?.estado === 'EN_RECLAMO', '| ' + r.body.publicacion?.estado);
+  chequear('con un reclamo pendiente no se puede reclamar de nuevo', r.body.acciones?.puedeReclamar === false && r.body.publicacion?.miReclamo?.estado === 'PENDIENTE');
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
+  chequear('el publicador ve cuántos esperan respuesta', r.body.publicacion?.reclamosPendientes === 1, '| ' + r.body.publicacion?.reclamosPendientes);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: martin.bearer, body: { respuesta: 'azul' } });
+  chequear('un segundo reclamo pendiente se rechaza', r.status === 409 && r.body?.error?.codigo === 'RECLAMO_PENDIENTE', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'azul', fotoUrl: 'javascript:alert(1)' } });
+  chequear('foto con esquema raro', r.status === 400 && r.body?.error?.codigo === 'FOTO_URL_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  // El tope de 3 intentos.
+  await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'verde' } });
+  await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'negro' } });
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'blanco' } });
+  chequear('el tercer error avisa que no quedan intentos', r.status === 400 && r.body?.error?.mensaje?.includes('no te quedan'), '| ' + r.body?.error?.mensaje);
+
+  r = await pedir('POST', `/hallado/publicaciones/${hallazgoId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'azul' } });
+  chequear('el cuarto intento se rechaza aunque sea correcto', r.status === 409 && r.body?.error?.codigo === 'SIN_INTENTOS', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: carla.bearer });
+  chequear('sin intentos no se puede reclamar', r.body.acciones?.puedeReclamar === false && r.body.publicacion?.intentosRestantes === 0);
+
+  // "Lo encontré" sobre una pérdida: foto y barrio obligatorios.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: basePerdi });
+  const perdidaReclamoId = r.body.publicacion?.id;
+
+  r = await pedir('POST', `/hallado/publicaciones/${perdidaReclamoId}/reclamos`, { bearer: martin.bearer, body: { barrioId: 3 } });
+  chequear('"Lo encontré" sin foto', r.status === 400 && r.body?.error?.codigo === 'FOTO_REQUERIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${perdidaReclamoId}/reclamos`, { bearer: martin.bearer, body: { fotoUrl: 'https://example.com/gato.jpg' } });
+  chequear('"Lo encontré" sin barrio', r.status === 400 && r.body?.error?.codigo === 'BARRIO_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/publicaciones/${perdidaReclamoId}/reclamos`, {
+    bearer: martin.bearer,
+    body: { fotoUrl: 'https://example.com/gato.jpg', barrioId: 3, descripcion: 'Lo tengo en casa' },
+  });
+  chequear('"Lo encontré" con foto y barrio', r.status === 201 && r.body.reclamo?.tipo === 'LO_ENCONTRE', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  const reclamoLoEncontreId = r.body.reclamo?.id;
+  chequear('guarda el barrio', r.body.reclamo?.barrio?.nombre === 'Caballito', '| ' + r.body.reclamo?.barrio?.nombre);
+  chequear('no hay pregunta que contestar', r.body.reclamo?.respuesta === null && r.body.reclamo?.respuestaCorrecta === null);
+
+  r = await pedir('POST', `/hallado/publicaciones/${perdidaReclamoId}/reclamos`, { bearer: carla.bearer, body: { fotoUrl: 'https://example.com/otro-gato.jpg', barrioId: 6 } });
+  chequear('varias personas pueden reclamar la misma', r.status === 201, '| ' + r.status);
+  const reclamoCarlaId = r.body.reclamo?.id;
+
+  r = await pedir('POST', '/hallado/publicaciones/999999/reclamos', { bearer: martin.bearer, body: { respuesta: 'x' } });
+  chequear('reclamar algo inexistente', r.status === 404 && r.body?.error?.codigo === 'PUBLICACION_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });
