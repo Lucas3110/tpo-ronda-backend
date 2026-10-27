@@ -153,8 +153,12 @@ function toReclamoDto(fila, usuarioId = null) {
 
 // Un caso del historial (punto 10): un reclamo aceptado visto desde uno de
 // sus dos lados. "Fecha, objeto y contraparte", como pide el enunciado.
-function toCasoDto(fila, usuarioId) {
+function toCasoDto(fila, usuarioId, { valoraciones = [], plazoDias = 7 } = {}) {
   const soyElReclamante = fila.reclamante_id === usuarioId;
+  const mia = valoraciones.find((v) => v.autor_id === usuarioId) ?? null;
+  const recibida = valoraciones.find((v) => v.destinatario_id === usuarioId) ?? null;
+  const diasPasados = Number(fila.dias_desde_respuesta ?? 0);
+
   return {
     id: fila.id,
     rol: fila.rol,
@@ -168,6 +172,17 @@ function toCasoDto(fila, usuarioId) {
     contraparte: soyElReclamante
       ? { id: fila.publicador_id, nombre: fila.publicador_nombre }
       : { id: fila.reclamante_id, nombre: fila.reclamante_nombre },
+
+    // Punto 10: la valoración que dejé y la que me dejaron, y si todavía
+    // estoy a tiempo de valorar. El agradecimiento sólo lo puede dejar
+    // quien recuperó.
+    valoracion: {
+      mia: toValoracionDto(mia),
+      recibida: toValoracionDto(recibida),
+      puedoValorar: mia === null && diasPasados <= plazoDias,
+      diasParaValorar: Math.max(0, plazoDias - diasPasados),
+      puedoAgradecer: fila.rol === 'RECUPERE',
+    },
   };
 }
 
@@ -204,6 +219,35 @@ function toReputacionDto(fila) {
   return {
     devoluciones: Number(fila?.devoluciones ?? 0),
     recuperos: Number(fila?.recuperos ?? 0),
+    valoracionesPositivas: Number(fila?.valoraciones_positivas ?? 0),
+    valoracionesNegativas: Number(fila?.valoraciones_negativas ?? 0),
+    agradecimientos: Number(fila?.agradecimientos ?? 0),
+  };
+}
+
+// Una valoración entre las dos partes de un caso.
+function toValoracionDto(fila) {
+  if (!fila) return null;
+  return {
+    id: fila.id,
+    tipo: fila.tipo,
+    mensaje: fila.mensaje,
+    agradecimiento: fila.agradecimiento,
+    creadoEn: fila.creado_en,
+    autor: { id: fila.autor_id, nombre: fila.autor_nombre },
+    destinatario: { id: fila.destinatario_id, nombre: fila.destinatario_nombre },
+  };
+}
+
+// Un agradecimiento público, como se ve en el perfil de quien devolvió.
+// Sin el tipo ni el mensaje privado: eso queda entre las dos partes.
+function toAgradecimientoDto(fila) {
+  return {
+    id: fila.id,
+    texto: fila.agradecimiento,
+    fecha: fila.creado_en,
+    de: { id: fila.autor_id, nombre: fila.autor_nombre },
+    publicacion: { id: fila.publicacion_id, titulo: fila.pub_titulo },
   };
 }
 
@@ -230,4 +274,6 @@ module.exports = {
   toReclamoDto,
   toReclamoResumenDto,
   toCasoDto,
+  toValoracionDto,
+  toAgradecimientoDto,
 };

@@ -48,6 +48,12 @@ module.exports = {
     horasDeVigencia: Number(leer('RECLAMO_VIGENCIA_HORAS', 48)),
   },
 
+  // Hallado, punto 10: días después de la devolución en los que se puede
+  // valorar a la otra parte.
+  valoracion: {
+    plazoDias: Number(leer('VALORACION_PLAZO_DIAS', 7)),
+  },
+
   mail: {
     modo: leer('MAIL_MODE', 'console'), // 'console' | 'smtp'
     host: process.env.SMTP_HOST,
