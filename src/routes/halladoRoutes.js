@@ -9,6 +9,7 @@ const reclamos = require('../controllers/halladoReclamoController');
 const historial = require('../controllers/halladoHistorialController');
 const valoraciones = require('../controllers/halladoValoracionController');
 const perfiles = require('../controllers/halladoPerfilController');
+const alertas = require('../controllers/halladoAlertaController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -40,7 +41,7 @@ router.get('/publicaciones/mias', autenticar, controller.mias);
 router.get('/publicaciones/:id', autenticarOpcional, controller.obtenerDetalle);
 
 // Punto 4: seguir una publicación para enterarse de sus novedades. La lista
-// de seguidas y el aviso de novedad son del punto 9.
+// de seguidas y el aviso de novedad son del punto 9 (más abajo).
 router.post('/publicaciones/:id/seguir', autenticar, controller.seguir);
 router.delete('/publicaciones/:id/seguir', autenticar, controller.dejarDeSeguir);
 
@@ -70,6 +71,21 @@ router.get('/usuarios/:id/perfil', perfiles.perfilPublico);
 
 // Los agradecimientos públicos de una persona, para su perfil (punto 2).
 router.get('/usuarios/:id/agradecimientos', valoraciones.agradecimientos);
+
+// --- Punto 9: alertas, seguidas y el indicador de novedad (todo privado) ---
+// Una alerta es una búsqueda del punto 3 guardada con sus criterios.
+router.post('/alertas', autenticar, alertas.crear);
+router.get('/alertas', autenticar, alertas.listar);
+router.patch('/alertas/:id', autenticar, alertas.cambiarEstado);
+router.delete('/alertas/:id', autenticar, alertas.eliminar);
+router.get('/alertas/:id/publicaciones', autenticar, alertas.publicaciones);
+router.post('/alertas/:id/vista', autenticar, alertas.marcarVista);
+
+// Las publicaciones que la persona sigue (se siguen desde el detalle, punto 4).
+router.get('/seguidas', autenticar, alertas.seguidas);
+
+// El resumen para prender el indicador de las dos secciones.
+router.get('/novedades', autenticar, alertas.resumenNovedades);
 
 router.get('/publicaciones/:id/propia', autenticar, controller.obtenerPropia);
 router.patch('/publicaciones/:id', autenticar, controller.editar);

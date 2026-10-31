@@ -1317,6 +1317,148 @@ async function main() {
   chequear('agradecimientos de alguien inexistente', r.status === 404 && r.body?.error?.codigo === 'USUARIO_NO_ENCONTRADO', '| ' + r.body?.error?.codigo);
   await pedir('DELETE', `/hallado/publicaciones/${gataId}`, { bearer: sofia.bearer });
 
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 9 · Alertas');
+  // Una alerta es una búsqueda del punto 3 guardada con sus criterios. Una
+  // palabra única por corrida aísla las publicaciones de esta prueba de lo
+  // que haya cargado el seed.
+  const palabraAlerta = `alerta${Date.now()}`;
+  const criteriosAlerta = { queTePaso: 'PERDI', categoriaId: 2, barrioId: 6, q: palabraAlerta };
+
+  r = await pedir('GET', '/hallado/alertas');
+  chequear('alertas sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/alertas', { bearer: martin.bearer, body: criteriosAlerta });
+  chequear('guardar una búsqueda como alerta', r.status === 201 && r.body.creada === true, '| ' + r.status + ' ' + r.body?.error?.codigo);
+  const alertaId = r.body.alerta?.id;
+  chequear('guarda los cuatro criterios', r.body.alerta?.criterios?.queTePaso === 'PERDI' && r.body.alerta?.criterios?.categoria?.id === 2
+    && typeof r.body.alerta?.criterios?.barrio?.nombre === 'string' && r.body.alerta?.criterios?.q === palabraAlerta);
+  chequear('nace activa y sin novedades', r.body.alerta?.activa === true && r.body.alerta?.nuevas === 0);
+
+  r = await pedir('POST', '/hallado/alertas', { bearer: martin.bearer, body: criteriosAlerta });
+  chequear('guardar la misma búsqueda no duplica', r.status === 200 && r.body.creada === false && r.body.alerta?.id === alertaId, '| ' + r.status);
+
+  r = await pedir('POST', '/hallado/alertas', { bearer: martin.bearer, body: { queTePaso: 'PRESTE' } });
+  chequear('alerta con tipo inventado', r.status === 400 && r.body?.error?.codigo === 'QUE_TE_PASO_INVALIDO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/hallado/alertas', { bearer: martin.bearer, body: { queTePaso: 'PERDI', categoriaId: 999999 } });
+  chequear('alerta con una categoría que no existe', r.status === 400 && r.body?.error?.codigo === 'CATEGORIA_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  // Sofía publica algo que coincide (un hallazgo, porque Martín perdió) y
+  // algo que no (otra pérdida con la misma palabra).
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...baseEncontre, titulo: `Llavero ${palabraAlerta}` } });
+  const coincideId = r.body.publicacion?.id;
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...basePerdi, titulo: `Billetera ${palabraAlerta}` } });
+  const noCoincideId = r.body.publicacion?.id;
+
+  r = await pedir('GET', '/hallado/alertas', { bearer: martin.bearer });
+  let miAlerta = r.body.alertas?.find((a) => a.id === alertaId);
+  chequear('"Mis alertas" cuenta la publicación nueva', r.status === 200 && miAlerta?.nuevas === 1 && miAlerta?.hayNovedad === true, '| ' + miAlerta?.nuevas);
+  chequear('y el total de nuevas', r.body.totalNuevas >= 1);
+
+  r = await pedir('GET', '/hallado/novedades', { bearer: martin.bearer });
+  chequear('el indicador general se prende', r.status === 200 && r.body.alertas?.alertasConNovedad >= 1 && r.body.hayNovedades === true, '| ' + JSON.stringify(r.body));
+
+  r = await pedir('GET', `/hallado/alertas/${alertaId}/publicaciones`, { bearer: martin.bearer });
+  chequear('lo que encuentra la alerta', r.status === 200 && r.body.publicaciones?.length === 1 && r.body.publicaciones[0].id === coincideId, '| ' + r.body.publicaciones?.map((p) => p.id));
+  chequear('marcada como nueva', r.body.publicaciones?.[0]?.esNueva === true);
+  chequear('sin la dirección exacta', r.body.publicaciones?.[0]?.direccion === null);
+  chequear('con paginado', r.body.paginado?.total === 1);
+
+  r = await pedir('GET', `/hallado/alertas/${alertaId}/publicaciones`, { bearer: carla.bearer });
+  chequear('la alerta de otra persona no se ve', r.status === 404 && r.body?.error?.codigo === 'ALERTA_NO_ENCONTRADA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/alertas/${alertaId}/vista`, { bearer: martin.bearer });
+  chequear('marcar la alerta como vista', r.status === 200 && r.body.alerta?.nuevas === 0 && r.body.alerta?.hayNovedad === false, '| ' + r.body.alerta?.nuevas);
+
+  r = await pedir('GET', `/hallado/alertas/${alertaId}/publicaciones`, { bearer: martin.bearer });
+  chequear('después de verla ya no es nueva', r.body.publicaciones?.[0]?.esNueva === false);
+
+  // Pausar es no querer avisos, y reactivar no trae lo de la pausa.
+  r = await pedir('PATCH', `/hallado/alertas/${alertaId}`, { bearer: martin.bearer, body: { activa: false } });
+  chequear('pausar una alerta', r.status === 200 && r.body.alerta?.activa === false, '| ' + r.status);
+
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...baseEncontre, titulo: `Otro llavero ${palabraAlerta}` } });
+  const enPausaId = r.body.publicacion?.id;
+
+  r = await pedir('GET', '/hallado/alertas', { bearer: martin.bearer });
+  miAlerta = r.body.alertas?.find((a) => a.id === alertaId);
+  chequear('una pausada no cuenta novedades', miAlerta?.activa === false && miAlerta?.nuevas === 0, '| ' + miAlerta?.nuevas);
+
+  r = await pedir('PATCH', `/hallado/alertas/${alertaId}`, { bearer: martin.bearer, body: { activa: true } });
+  chequear('reactivarla no trae lo de la pausa', r.status === 200 && r.body.alerta?.activa === true && r.body.alerta?.nuevas === 0, '| ' + r.body.alerta?.nuevas);
+
+  r = await pedir('PATCH', `/hallado/alertas/${alertaId}`, { bearer: martin.bearer, body: { activa: 'si' } });
+  chequear('activa tiene que ser booleano', r.status === 400 && r.body?.error?.codigo === 'ACTIVA_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  // Lo que publica la misma persona no es novedad para ella.
+  r = await pedir('POST', '/hallado/alertas', { bearer: sofia.bearer, body: criteriosAlerta });
+  const alertaSofiaId = r.body.alerta?.id;
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: { ...baseEncontre, titulo: `Tercer llavero ${palabraAlerta}` } });
+  const propiaId = r.body.publicacion?.id;
+  r = await pedir('GET', '/hallado/alertas', { bearer: sofia.bearer });
+  chequear('lo propio no cuenta como nuevo', r.body.alertas?.find((a) => a.id === alertaSofiaId)?.nuevas === 0);
+  r = await pedir('GET', '/hallado/alertas', { bearer: martin.bearer });
+  chequear('para otra persona sí', r.body.alertas?.find((a) => a.id === alertaId)?.nuevas === 1, '| ' + r.body.alertas?.find((a) => a.id === alertaId)?.nuevas);
+
+  r = await pedir('DELETE', `/hallado/alertas/${alertaId}`, { bearer: carla.bearer });
+  chequear('no se borra la alerta de otra persona', r.status === 404, '| ' + r.status);
+
+  r = await pedir('DELETE', `/hallado/alertas/${alertaId}`, { bearer: martin.bearer });
+  chequear('eliminar una alerta', r.status === 200, '| ' + r.status);
+
+  r = await pedir('GET', '/hallado/alertas', { bearer: martin.bearer });
+  chequear('ya no está en "Mis alertas"', r.body.alertas?.some((a) => a.id === alertaId) === false);
+
+  await pedir('DELETE', `/hallado/alertas/${alertaSofiaId}`, { bearer: sofia.bearer });
+  for (const id of [noCoincideId, enPausaId, propiaId]) {
+    await pedir('DELETE', `/hallado/publicaciones/${id}`, { bearer: sofia.bearer });
+  }
+
+  // -------------------------------------------------------------
+  seccion('Hallado · Punto 9 · Seguidas');
+  // Novedad = la publicación cambió de estado desde la última vez que la
+  // persona la abrió.
+
+  r = await pedir('GET', '/hallado/seguidas');
+  chequear('seguidas sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  await pedir('POST', `/hallado/publicaciones/${coincideId}/seguir`, { bearer: martin.bearer });
+
+  r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
+  let seguida = r.body.seguidas?.find((s) => s.id === coincideId);
+  chequear('la publicación está en "Seguidas"', r.status === 200 && seguida !== undefined, '| ' + r.status);
+  chequear('recién seguida no tiene novedad', seguida?.hayNovedad === false && seguida?.estadoVisto === 'ABIERTA');
+  chequear('sin la dirección exacta', seguida?.direccion === null);
+
+  r = await pedir('POST', `/hallado/publicaciones/${coincideId}/reclamos`, { bearer: carla.bearer, body: { respuesta: 'azul' } });
+  const reclamoSeguidaId = r.body.reclamo?.id;
+
+  r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
+  seguida = r.body.seguidas?.find((s) => s.id === coincideId);
+  chequear('un cambio de estado es novedad', seguida?.hayNovedad === true && seguida?.estado === 'EN_RECLAMO' && seguida?.estadoVisto === 'ABIERTA', '| ' + seguida?.estado + ' / ' + seguida?.estadoVisto);
+  chequear('las que tienen novedad van primero', r.body.seguidas?.[0]?.hayNovedad === true);
+  chequear('y se cuentan', r.body.conNovedad >= 1);
+
+  r = await pedir('GET', '/hallado/novedades', { bearer: martin.bearer });
+  chequear('el indicador general ve la seguida', r.body.seguidas?.conNovedad >= 1 && r.body.hayNovedades === true, '| ' + JSON.stringify(r.body.seguidas));
+
+  // Abrir el detalle es ver la novedad.
+  await pedir('GET', `/hallado/publicaciones/${coincideId}`, { bearer: martin.bearer });
+  r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
+  seguida = r.body.seguidas?.find((s) => s.id === coincideId);
+  chequear('abrir el detalle apaga la novedad', seguida?.hayNovedad === false && seguida?.estadoVisto === 'EN_RECLAMO', '| ' + seguida?.estadoVisto);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoSeguidaId}/aceptar`, { bearer: sofia.bearer });
+  r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
+  seguida = r.body.seguidas?.find((s) => s.id === coincideId);
+  chequear('resolverse también es novedad', seguida?.hayNovedad === true && seguida?.estado === 'RESUELTA', '| ' + seguida?.estado);
+  chequear('las resueltas siguen en la lista', seguida !== undefined);
+
+  await pedir('DELETE', `/hallado/publicaciones/${coincideId}`, { bearer: sofia.bearer });
+  r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
+  chequear('una publicación borrada sale de "Seguidas"', r.body.seguidas?.some((s) => s.id === coincideId) === false);
+
   // Limpieza: las publicaciones de Hallado que creo esta corrida no hacen
   // falta después, y dejarlas haría crecer la lista de Sofía en cada pasada.
   await pedir('DELETE', `/hallado/publicaciones/${hallazgoId}`, { bearer: sofia.bearer });

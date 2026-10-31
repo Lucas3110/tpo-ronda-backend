@@ -113,9 +113,62 @@ const DISTANCIA_KM = `
   ))
 `;
 
-// GET /api/hallado/publicaciones
-async function buscar(filtros = {}) {
+// Los cuatro criterios que una alerta guarda (punto 9): tipo, categoría,
+// barrio y palabras clave. Viven acá para que una alerta encuentre
+// exactamente lo mismo que la búsqueda de la que salió.
+function validarCriterios(filtros = {}) {
   const queTePaso = validarQueTePaso(filtros.queTePaso);
+  const categoriaId = filtros.categoriaId
+    ? validarEntero(filtros.categoriaId, {
+      nombre: 'categoriaId', codigo: 'CATEGORIA_INVALIDA', min: 1, max: 1e6, defecto: null,
+    })
+    : null;
+  const barrioId = filtros.barrioId
+    ? validarEntero(filtros.barrioId, {
+      nombre: 'barrioId', codigo: 'BARRIO_INVALIDO', min: 1, max: 1e6, defecto: null,
+    })
+    : null;
+
+  const q = String(filtros.q ?? '').trim();
+  if (q.length > Q_MAX) {
+    throw ApiError.badRequest(`La búsqueda no puede tener más de ${Q_MAX} caracteres`, 'Q_LARGA');
+  }
+
+  return { queTePaso, categoriaId, barrioId, q: q === '' ? null : q };
+}
+
+// Arma el WHERE de los criterios ya validados.
+function condicionesDeCriterios({ queTePaso, categoriaId, barrioId, q }) {
+  const condiciones = [ESTADOS_VISIBLES, 'p.tipo = ?'];
+  const parametros = [OPUESTO[queTePaso]];
+
+  if (categoriaId) {
+    condiciones.push('p.categoria_id = ?');
+    parametros.push(categoriaId);
+  }
+
+  if (barrioId) {
+    condiciones.push('p.barrio_id = ?');
+    parametros.push(barrioId);
+  }
+
+  // Palabras clave: busca en el título y en la descripción.
+  if (q) {
+    // Los comodines se escapan: sin esto, buscar "100%" devuelve todo.
+    const patron = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    condiciones.push('(p.titulo LIKE ? OR p.descripcion LIKE ?)');
+    parametros.push(patron, patron);
+  }
+
+  return { condiciones, parametros };
+}
+
+// GET /api/hallado/publicaciones
+//
+// excluirUsuarioId lo usan las alertas (punto 9): lo que publicó la misma
+// persona no es una novedad para ella. El buscador público no lo manda.
+async function buscar(filtros = {}, { excluirUsuarioId = null } = {}) {
+  const criterios = validarCriterios(filtros);
   const orden = validarOrden(filtros.orden);
   const limite = validarEntero(filtros.limite, {
     nombre: 'limite', codigo: 'LIMITE_INVALIDO', min: 1, max: LIMITE_MAXIMO, defecto: LIMITE_DEFECTO,
@@ -124,33 +177,11 @@ async function buscar(filtros = {}) {
     nombre: 'pagina', codigo: 'PAGINA_INVALIDA', min: 1, max: 10000, defecto: 1,
   });
 
-  const condiciones = [ESTADOS_VISIBLES, 'p.tipo = ?'];
-  const parametros = [OPUESTO[queTePaso]];
+  const { condiciones, parametros } = condicionesDeCriterios(criterios);
 
-  if (filtros.categoriaId) {
-    condiciones.push('p.categoria_id = ?');
-    parametros.push(validarEntero(filtros.categoriaId, {
-      nombre: 'categoriaId', codigo: 'CATEGORIA_INVALIDA', min: 1, max: 1e6, defecto: null,
-    }));
-  }
-
-  if (filtros.barrioId) {
-    condiciones.push('p.barrio_id = ?');
-    parametros.push(validarEntero(filtros.barrioId, {
-      nombre: 'barrioId', codigo: 'BARRIO_INVALIDO', min: 1, max: 1e6, defecto: null,
-    }));
-  }
-
-  // Palabras clave: busca en el título y en la descripción.
-  const q = String(filtros.q ?? '').trim();
-  if (q !== '') {
-    if (q.length > Q_MAX) {
-      throw ApiError.badRequest(`La búsqueda no puede tener más de ${Q_MAX} caracteres`, 'Q_LARGA');
-    }
-    // Los comodines se escapan: sin esto, buscar "100%" devuelve todo.
-    const patron = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    condiciones.push('(p.titulo LIKE ? OR p.descripcion LIKE ?)');
-    parametros.push(patron, patron);
+  if (excluirUsuarioId !== null) {
+    condiciones.push('p.usuario_id <> ?');
+    parametros.push(excluirUsuarioId);
   }
 
   const fecha = condicionDeFecha(filtros);
@@ -226,4 +257,4 @@ async function buscar(filtros = {}) {
   };
 }
 
-module.exports = { buscar };
+module.exports = { buscar, validarCriterios, condicionesDeCriterios };

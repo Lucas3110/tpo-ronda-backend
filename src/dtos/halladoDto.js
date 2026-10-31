@@ -286,6 +286,40 @@ function toAgradecimientoDto(fila) {
   };
 }
 
+// Una alerta de "Mis alertas" (punto 9): los criterios con los que se
+// guardó y cuántas publicaciones nuevas coinciden. Los criterios vuelven
+// con los mismos nombres que usa el buscador, así la app puede abrir el
+// buscador con la alerta tal cual.
+function toAlertaDto(fila, nuevas = 0) {
+  return {
+    id: fila.id,
+    criterios: {
+      queTePaso: fila.que_te_paso,
+      categoria: fila.categoria_id ? { id: fila.categoria_id, nombre: fila.categoria_nombre } : null,
+      barrio: fila.barrio_id ? { id: fila.barrio_id, nombre: fila.barrio_nombre } : null,
+      q: fila.q,
+    },
+    activa: Boolean(fila.activa),
+    nuevas,
+    hayNovedad: nuevas > 0,
+    vistoEn: fila.visto_en,
+    creadoEn: fila.creado_en,
+  };
+}
+
+// Una publicación de "Seguidas" (punto 9). Es la misma publicación de los
+// resultados, sin dirección exacta, más el estado que la persona vio por
+// última vez para que la app pueda decir "pasó de Abierta a Resuelta".
+function toSeguidaDto(fila, fotos = []) {
+  const estado = fila.estado_efectivo ?? fila.estado;
+  return {
+    ...toPublicacionDto(fila, fotos, { verDireccion: false }),
+    estadoVisto: fila.estado_visto,
+    hayNovedad: estado !== fila.estado_visto,
+    seguidaDesde: fila.seguida_desde,
+  };
+}
+
 // MySQL devuelve un Date para las columnas DATE. Lo pasamos a 'YYYY-MM-DD'
 // usando los getters locales y no toISOString(), que convierte a UTC y puede
 // correr la fecha un día para atrás.
@@ -312,4 +346,6 @@ module.exports = {
   toCasoDto,
   toValoracionDto,
   toAgradecimientoDto,
+  toAlertaDto,
+  toSeguidaDto,
 };
