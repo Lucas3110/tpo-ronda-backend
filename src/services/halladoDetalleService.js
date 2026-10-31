@@ -17,7 +17,7 @@ const { toDetalleDto } = require('../dtos/halladoDto');
 const { pool } = require('../config/db');
 const { SELECT_PUBLICACION, buscarFotos } = require('./halladoPublicarService');
 const { obtenerReputacion } = require('./halladoReputacionService');
-const { estadoDeSeguimiento } = require('./halladoSeguirService');
+const { estadoDeSeguimiento, marcarVista } = require('./halladoSeguirService');
 const reclamos = require('./halladoReclamoService');
 
 // Sólo se puede reclamar sobre algo que todavía está en juego. Una RESUELTA
@@ -69,6 +69,10 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
   ]);
 
   const estado = publicacion.estado_efectivo ?? publicacion.estado;
+
+  // Punto 9: abrir una publicación seguida es ver su novedad. Desde acá el
+  // estado actual pasa a ser el visto y el indicador de "Seguidas" se apaga.
+  await marcarVista(id, usuarioId, estado);
 
   // Las acciones se deciden acá y no en la app: si la app las calculara
   // sola, un cambio de regla (por ejemplo, el tope de intentos del punto 7)
