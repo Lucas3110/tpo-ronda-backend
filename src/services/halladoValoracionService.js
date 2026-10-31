@@ -5,7 +5,7 @@
 // opcional. Quien recuperó su objeto puede además dejar un agradecimiento
 // público, visible en el perfil de quien se lo devolvió."
 //
-// La devolución es la aceptación del reclamo (punto 7): desde esa fecha
+// La devolución se confirma en el punto 8: desde esa fecha
 // corren los 7 días. Son configurables con VALORACION_PLAZO_DIAS para poder
 // mostrar el plazo vencido en una demo sin esperar una semana.
 const { pool } = require('../config/db');
@@ -84,7 +84,7 @@ async function valorar(reclamoId, usuarioId, datos = {}) {
   if (reclamo.reclamante_id !== usuarioId && reclamo.publicador_id !== usuarioId) {
     throw ApiError.forbidden('Ese caso no es tuyo', 'NO_TE_CORRESPONDE');
   }
-  if (reclamo.estado !== 'ACEPTADO') {
+  if (reclamo.estado !== 'ACEPTADO' || reclamo.pub_estado !== 'RESUELTA' || !reclamo.resuelto_en) {
     throw ApiError.conflict('Todavía no hay una devolución que valorar', 'CASO_NO_RESUELTO');
   }
   if (Number(reclamo.dias_desde_respuesta) > config.valoracion.plazoDias) {

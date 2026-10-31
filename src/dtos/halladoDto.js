@@ -182,7 +182,7 @@ function toCasoDto(fila, usuarioId, { valoraciones = [], plazoDias = 7 } = {}) {
   return {
     id: fila.id,
     rol: fila.rol,
-    fecha: fila.respondido_en,
+    fecha: fila.resuelto_en,
     publicacion: {
       id: fila.publicacion_id,
       tipo: fila.pub_tipo,
@@ -200,7 +200,7 @@ function toCasoDto(fila, usuarioId, { valoraciones = [], plazoDias = 7 } = {}) {
       mia: toValoracionDto(mia),
       recibida: toValoracionDto(recibida),
       puedoValorar: mia === null && diasPasados <= plazoDias,
-      diasParaValorar: Math.max(0, plazoDias - diasPasados),
+      diasParaValorar: Math.max(0, Math.ceil(plazoDias - diasPasados)),
       puedoAgradecer: fila.rol === 'RECUPERE',
     },
   };

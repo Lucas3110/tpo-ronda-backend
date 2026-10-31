@@ -10,7 +10,9 @@
     "postman": "node scripts/generate-postman.js",
     "db:seed": "node scripts/seed-demo.js",
     "db:seed:hallado": "node scripts/seed-hallado.js",
+    "db:seed:encuentros": "node scripts/seed-encuentros.js",
     "test:api": "node scripts/regresion.js",
+    "test:encuentros": "node scripts/test-encuentros.js",
     "test:mail": "node scripts/probar-mail.js"
   },
   "keywords": [

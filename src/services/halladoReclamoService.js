@@ -41,7 +41,8 @@ const TIPO_DE_RECLAMO = { ENCONTRE: 'ES_MIO', PERDI: 'LO_ENCONTRE' };
 const SELECT_RECLAMO = `
   SELECT r.*,
          GREATEST(0, TIMESTAMPDIFF(MINUTE, NOW(), r.vence_en)) AS minutos_para_vencer,
-         TIMESTAMPDIFF(DAY, r.respondido_en, NOW()) AS dias_desde_respuesta,
+         p.resuelto_en,
+         TIMESTAMPDIFF(SECOND, p.resuelto_en, NOW()) / 86400 AS dias_desde_respuesta,
          p.tipo       AS pub_tipo,
          p.titulo     AS pub_titulo,
          p.usuario_id AS publicador_id,
@@ -78,7 +79,7 @@ async function vencerReclamos() {
       WHERE p.estado = 'EN_RECLAMO'
         AND NOT EXISTS (
           SELECT 1 FROM hallado_reclamos r
-           WHERE r.publicacion_id = p.id AND r.estado = 'PENDIENTE'
+           WHERE r.publicacion_id = p.id AND r.estado IN ('PENDIENTE', 'ACEPTADO')
         )`
   );
 }
@@ -168,11 +169,13 @@ async function resumenParaDetalle(publicacionId, usuarioId) {
     [publicacionId]
   );
   const mios = usuarioId === null ? [] : await intentosDe(publicacionId, usuarioId);
+  const [[aceptado]] = await pool.query("SELECT id FROM hallado_reclamos WHERE publicacion_id = ? AND estado = 'ACEPTADO' LIMIT 1", [publicacionId]);
 
   return {
     miReclamo: mios[0] ?? null,
     intentosRestantes: Math.max(0, MAX_INTENTOS - mios.length),
     pendientes: Number(pendientes[0].n),
+    tieneAceptado: Boolean(aceptado),
   };
 }
 
@@ -212,6 +215,8 @@ async function crear(publicacionId, usuarioId, datos = {}) {
   }
 
   const intentos = await intentosDe(id, usuarioId);
+  const [[aceptado]] = await pool.query("SELECT id FROM hallado_reclamos WHERE publicacion_id = ? AND estado = 'ACEPTADO' LIMIT 1", [id]);
+  if (aceptado) throw ApiError.conflict('Ya se está coordinando la devolución', 'PUBLICACION_NO_RECLAMABLE');
   if (intentos.some((r) => r.estado === 'PENDIENTE')) {
     throw ApiError.conflict(
       'Ya tenés un reclamo esperando respuesta en esta publicación',
@@ -284,6 +289,9 @@ async function insertarPendiente(publicacion, usuarioId, campos) {
   try {
     await conexion.beginTransaction();
 
+    await conexion.query('SELECT id FROM hallado_publicaciones WHERE id = ? FOR UPDATE', [publicacion.id]);
+    const [[aceptado]] = await conexion.query("SELECT id FROM hallado_reclamos WHERE publicacion_id = ? AND estado = 'ACEPTADO' LIMIT 1 FOR UPDATE", [publicacion.id]);
+    if (aceptado) throw ApiError.conflict('Ya se está coordinando la devolución', 'PUBLICACION_NO_RECLAMABLE');
     const [resultado] = await conexion.query(
       `INSERT INTO hallado_reclamos
          (publicacion_id, reclamante_id, tipo, respuesta, respuesta_correcta,
@@ -318,11 +326,8 @@ async function insertarPendiente(publicacion, usuarioId, campos) {
 // ---------------------------------------------------------------
 // "El publicador puede aceptar o rechazar cada reclamo."
 //
-// Aceptar cierra el caso: la publicación pasa a RESUELTA (el objeto ya tiene
-// a quién volver), se anota cuándo, y los demás reclamos pendientes de esa
-// publicación se rechazan solos porque el objeto es uno. A partir de acá
-// quien reclamó ve la dirección exacta (punto 4) y el caso entra al
-// historial (punto 10).
+// Aceptar habilita la coordinación del punto 8. La publicación sigue EN_RECLAMO
+// hasta confirmar la entrega; recién entonces entra al historial.
 //
 // Rechazar devuelve la publicación a ABIERTA si no quedó ningún otro
 // reclamo esperando: el objeto sigue sin dueño.
@@ -349,6 +354,11 @@ async function responder(reclamoId, usuarioId, decision, motivo = null) {
   try {
     await conexion.beginTransaction();
 
+    await conexion.query('SELECT id FROM hallado_publicaciones WHERE id = ? FOR UPDATE', [reclamo.publicacion_id]);
+    const [[actual]] = await conexion.query('SELECT estado, vence_en > NOW() AS vigente FROM hallado_reclamos WHERE id = ? FOR UPDATE', [id]);
+    if (actual.estado !== 'PENDIENTE' || !actual.vigente) {
+      throw ApiError.conflict('El reclamo ya fue respondido o venció. Actualizá la pantalla.', 'RECLAMO_YA_RESPONDIDO');
+    }
     if (decision === 'ACEPTADO') {
       await conexion.query(
         "UPDATE hallado_reclamos SET estado = 'ACEPTADO', respondido_en = NOW() WHERE id = ?",
@@ -361,7 +371,7 @@ async function responder(reclamoId, usuarioId, decision, motivo = null) {
         [reclamo.publicacion_id, id]
       );
       await conexion.query(
-        "UPDATE hallado_publicaciones SET estado = 'RESUELTA', resuelto_en = NOW() WHERE id = ?",
+        "UPDATE hallado_publicaciones SET estado = 'EN_RECLAMO', resuelto_en = NULL WHERE id = ?",
         [reclamo.publicacion_id]
       );
     } else {
@@ -374,7 +384,7 @@ async function responder(reclamoId, usuarioId, decision, motivo = null) {
           WHERE p.id = ? AND p.estado = 'EN_RECLAMO'
             AND NOT EXISTS (
               SELECT 1 FROM hallado_reclamos r
-               WHERE r.publicacion_id = p.id AND r.estado = 'PENDIENTE'
+               WHERE r.publicacion_id = p.id AND r.estado IN ('PENDIENTE', 'ACEPTADO')
             )`,
         [reclamo.publicacion_id]
       );
