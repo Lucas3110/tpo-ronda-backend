@@ -568,4 +568,8 @@ module.exports = {
   normalizarRespuesta,
   // El punto 7 valida la foto de un reclamo con la misma regla.
   validarFotos,
+  // El punto 8 valida las coordenadas del encuentro con la misma regla: un
+  // par de números tiene que ser un lugar posible del planeta, venga de
+  // donde venga.
+  validarCoordenadas,
 };

@@ -332,6 +332,50 @@ function formatearFecha(valor) {
   return `${anio}-${mes}-${dia}`;
 }
 
+// Punto 8: el punto de encuentro de un reclamo aceptado.
+//
+// `puedoProponer` y `puedoAceptar` vienen resueltos del servicio, igual que
+// las `acciones` del detalle (punto 4): la app dibuja los botones con esto y
+// no vuelve a razonar quién tiene el objeto.
+//
+// Los booleanos van envueltos en Boolean() a propósito. MySQL devuelve los
+// TINYINT como 0 y 1, y React Native renderiza un 0 como texto: un
+// `{dto.acordado && <View/>}` con un 0 adentro rompe la pantalla con
+// "Text strings must be rendered within a <Text> component".
+function toEncuentroDto(contexto, { puedoProponer, puedoAceptar }) {
+  const hay = Boolean(contexto.encuentro_estado);
+
+  return {
+    publicacion: {
+      id: contexto.publicacion_id,
+      tipo: contexto.pub_tipo,
+      titulo: contexto.pub_titulo,
+    },
+
+    // null = todavía nadie propuso nada. La app muestra el formulario o el
+    // aviso de "esperá la propuesta" según quién esté mirando.
+    encuentro: hay
+      ? {
+          version: contexto.encuentro_version,
+          direccion: contexto.direccion,
+          // Las columnas DECIMAL vuelven como string del driver, y la app
+          // las necesita numéricas para armar la URL de Maps.
+          lat: contexto.lat === null ? null : Number(contexto.lat),
+          lng: contexto.lng === null ? null : Number(contexto.lng),
+          estado: contexto.encuentro_estado,
+          propuestoPorMi: contexto.propuesto_por === contexto.usuarioId,
+        }
+      : null,
+
+    puedoProponer: Boolean(puedoProponer),
+    puedoAceptar: Boolean(puedoAceptar),
+
+    // El lugar quedó acordado. No significa que la devolución recién ahí
+    // pasa a existir: el caso se cierra al aceptar el reclamo (punto 7).
+    acordado: hay && contexto.encuentro_estado === 'ACEPTADO',
+  };
+}
+
 module.exports = {
   toCategoriaDto,
   toBarrioDto,
@@ -348,4 +392,5 @@ module.exports = {
   toAgradecimientoDto,
   toAlertaDto,
   toSeguidaDto,
+  toEncuentroDto,
 };

@@ -1202,6 +1202,129 @@ async function main() {
   await pedir('DELETE', `/hallado/publicaciones/${paraguasId}`, { bearer: sofia.bearer });
 
   // -------------------------------------------------------------
+  seccion('Hallado · Punto 8 · Punto de encuentro');
+  // "Una vez aceptado un reclamo, quien tiene el objeto propone un punto de
+  // encuentro, y la otra parte puede aceptarlo o sugerir uno alternativo."
+  //
+  // Quién tiene el objeto depende del tipo de la publicación, así que se
+  // prueban los dos casos:
+  //
+  //   - hallazgoId es ENCONTRE de Sofía, reclamado por Martín: el objeto lo
+  //     tiene Sofía, la publicadora.
+  //   - el PERDI de más abajo lo publica Sofía y lo reclama Martín con un
+  //     "Lo encontré": el objeto lo tiene Martín, el reclamante.
+  //
+  // El segundo se arma acá y no se reusa el de la sección anterior, que esa
+  // sección borra al terminar.
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`);
+  chequear('encuentro sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: carla.bearer });
+  chequear('un tercero no ve el encuentro', r.status === 404 && r.body?.error?.codigo === 'RECLAMO_NO_ENCONTRADO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', '/hallado/reclamos/999999/encuentro', { bearer: sofia.bearer });
+  chequear('reclamo inexistente', r.status === 404, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoEsMioId}/encuentro`, { bearer: sofia.bearer });
+  chequear('sin reclamo aceptado no hay encuentro', r.status === 409 && r.body?.error?.codigo === 'RECLAMO_NO_ACEPTADO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer });
+  chequear('todavía no hay lugar propuesto', r.status === 200 && r.body.encuentro === null, '| ' + r.status);
+  chequear('propone quien tiene el objeto', r.body.puedoProponer === true && r.body.puedoAceptar === false);
+  chequear('trae la publicación y no está acordado', r.body.publicacion?.id === hallazgoId && r.body.acordado === false);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer });
+  chequear('la otra parte no arranca proponiendo', r.body.puedoProponer === false && r.body.puedoAceptar === false);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer, body: { direccion: 'Donde yo diga 1', version: 0 } });
+  chequear('quien no tiene el objeto no propone primero', r.status === 403 && r.body?.error?.codigo === 'NO_TENES_EL_OBJETO', '| ' + r.body?.error?.codigo);
+
+  // Validaciones de la dirección y las coordenadas.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: '   ', version: 0 } });
+  chequear('dirección vacía', r.status === 400 && r.body?.error?.codigo === 'DIRECCION_REQUERIDA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'x'.repeat(256), version: 0 } });
+  chequear('dirección demasiado larga', r.status === 400 && r.body?.error?.codigo === 'DIRECCION_LARGA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Plaza Italia', lat: -34.58, version: 0 } });
+  chequear('media coordenada', r.status === 400 && r.body?.error?.codigo === 'COORDENADAS_INCOMPLETAS', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Plaza Italia', lat: 120, lng: -58.42, version: 0 } });
+  chequear('latitud imposible', r.status === 400 && r.body?.error?.codigo === 'LATITUD_INVALIDA', '| ' + r.body?.error?.codigo);
+
+  // La primera propuesta.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Plaza Italia, CABA', lat: -34.5806, lng: -58.4214, version: 0 } });
+  chequear('proponer un lugar', r.status === 200 && r.body.encuentro?.estado === 'PROPUESTO', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('con la dirección y la versión 1', r.body.encuentro?.direccion === 'Plaza Italia, CABA' && r.body.encuentro?.version === 1, '| v' + r.body.encuentro?.version);
+  chequear('las coordenadas vuelven numéricas', typeof r.body.encuentro?.lat === 'number' && r.body.encuentro?.lng === -58.4214, '| ' + typeof r.body.encuentro?.lat);
+  chequear('quien propuso queda esperando', r.body.encuentro?.propuestoPorMi === true && r.body.puedoProponer === false && r.body.puedoAceptar === false);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro/aceptar`, { bearer: sofia.bearer, body: { version: 1 } });
+  chequear('nadie acepta su propia propuesta', r.status === 403 && r.body?.error?.codigo === 'PROPUESTA_PROPIA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Otro lugar 123', version: 1 } });
+  chequear('no se propone dos veces seguidas', r.status === 403 && r.body?.error?.codigo === 'ENCUENTRO_ESPERA_RESPUESTA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer });
+  chequear('la otra parte ve la propuesta ajena', r.body.encuentro?.propuestoPorMi === false, '| ' + r.body.encuentro?.propuestoPorMi);
+  chequear('y puede aceptar o contraproponer', r.body.puedoAceptar === true && r.body.puedoProponer === true);
+
+  // "Sugerir uno alternativo" es proponer de nuevo.
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer, body: { direccion: 'Plaza Serrano, CABA', version: 0 } });
+  chequear('contraproponer con una versión vieja', r.status === 409 && r.body?.error?.codigo === 'ENCUENTRO_CAMBIO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer, body: { direccion: 'Plaza Serrano, CABA', version: 1 } });
+  chequear('sugerir un lugar alternativo', r.status === 200 && r.body.encuentro?.direccion === 'Plaza Serrano, CABA', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('sube la versión y pierde las coordenadas viejas', r.body.encuentro?.version === 2 && r.body.encuentro?.lat === null, '| v' + r.body.encuentro?.version + ' lat=' + r.body.encuentro?.lat);
+  chequear('ahora espera quien contrapropuso', r.body.encuentro?.propuestoPorMi === true && r.body.puedoAceptar === false);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro/aceptar`, { bearer: sofia.bearer, body: { version: 1 } });
+  chequear('aceptar una versión que ya no está', r.status === 409 && r.body?.error?.codigo === 'ENCUENTRO_CAMBIO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro/aceptar`, { bearer: sofia.bearer, body: { version: 2 } });
+  chequear('aceptar el lugar', r.status === 200 && r.body.encuentro?.estado === 'ACEPTADO', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('queda acordado para los dos', r.body.acordado === true && r.body.puedoProponer === false && r.body.puedoAceptar === false);
+
+  r = await pedir('GET', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: martin.bearer });
+  chequear('y la otra parte lo ve acordado', r.body.acordado === true && r.body.encuentro?.direccion === 'Plaza Serrano, CABA');
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro/aceptar`, { bearer: martin.bearer, body: { version: 3 } });
+  chequear('no se acepta dos veces', r.status === 409 && r.body?.error?.codigo === 'ENCUENTRO_ACORDADO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Me arrepentí 500', version: 3 } });
+  chequear('acordado no se vuelve a proponer', r.status === 403 && r.body?.error?.codigo === 'ENCUENTRO_ACORDADO', '| ' + r.body?.error?.codigo);
+
+  // El caso dado vuelta: en una publicación PERDI el objeto lo tiene quien
+  // lo encontró, o sea el reclamante.
+  r = await pedir('POST', '/hallado/publicaciones', { bearer: sofia.bearer, body: basePerdi });
+  const perdidaEncuentroId = r.body.publicacion?.id;
+
+  r = await pedir('POST', `/hallado/publicaciones/${perdidaEncuentroId}/reclamos`, {
+    bearer: martin.bearer,
+    body: { fotoUrl: 'https://example.com/gato-encontrado.jpg', barrioId: 3, descripcion: 'La tengo en casa' },
+  });
+  const reclamoEncuentroId = r.body.reclamo?.id;
+  await pedir('POST', `/hallado/reclamos/${reclamoEncuentroId}/aceptar`, { bearer: sofia.bearer });
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEncuentroId}/encuentro`, { bearer: sofia.bearer, body: { direccion: 'Soy la dueña 100', version: 0 } });
+  chequear('en un PERDI la dueña no propone primero', r.status === 403 && r.body?.error?.codigo === 'NO_TENES_EL_OBJETO', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEncuentroId}/encuentro`, { bearer: martin.bearer, body: { direccion: 'Parque Centenario, CABA', version: 0 } });
+  chequear('propone quien encontró a la mascota', r.status === 200 && r.body.encuentro?.estado === 'PROPUESTO', '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('sin coordenadas también vale', r.body.encuentro?.lat === null && r.body.encuentro?.lng === null);
+
+  r = await pedir('POST', `/hallado/reclamos/${reclamoEncuentroId}/encuentro/aceptar`, { bearer: sofia.bearer, body: { version: 1 } });
+  chequear('la dueña acepta el lugar', r.status === 200 && r.body.acordado === true, '| ' + r.status + ' ' + r.body?.error?.codigo);
+
+  await pedir('DELETE', `/hallado/publicaciones/${perdidaEncuentroId}`, { bearer: sofia.bearer });
+
+  // El encuentro no toca el estado de la publicación: eso lo definió aceptar
+  // el reclamo (punto 7) y el historial del punto 10 depende de ello.
+  r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
+  chequear('acordar no cambia la publicación', r.body.publicacion?.estado === 'RESUELTA', '| ' + r.body.publicacion?.estado);
+
+  // -------------------------------------------------------------
   seccion('Hallado · Punto 10 · Historial');
   // Un caso es un reclamo aceptado, y aparece en el historial de las dos
   // personas con el rol dado vuelta: quien devolvió y quien recuperó.
