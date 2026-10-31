@@ -49,6 +49,20 @@ async function pedir(metodo, ruta, { bearer, body } = {}) {
   };
 }
 
+// El punto 8 separa aceptar un reclamo de concretar la devolución.
+async function devolver(reclamoId, quienTiene, quienRecupera) {
+  const ruta = `/hallado/reclamos/${reclamoId}/encuentro`;
+  const propuesta = await pedir('POST', ruta, { bearer: quienTiene.bearer,
+    body: { direccion: 'Plaza Italia, CABA', version: 0 } });
+  chequear('proponer encuentro para la devolución', propuesta.status === 200);
+  const acuerdo = await pedir('POST', `${ruta}/aceptar`, { bearer: quienRecupera.bearer,
+    body: { version: propuesta.body.encuentro?.version } });
+  chequear('acordar encuentro para la devolución', acuerdo.status === 200);
+  const entrega = await pedir('POST', `${ruta}/concretar`, { bearer: quienTiene.bearer,
+    body: { version: acuerdo.body.encuentro?.version } });
+  chequear('confirmar entrega antes del historial', entrega.status === 200 && entrega.body.resuelto);
+}
+
 // Devuelve una fecha AAAA-MM-DD de hace N dias. Con N negativo da una
 // fecha futura, que es como probamos que el backend la rechace.
 function fechaDeHace(dias) {
@@ -1092,7 +1106,7 @@ async function main() {
 
   // --- Aceptar y rechazar ---
   // Sólo el publicador responde. Rechazar devuelve la publicación a ABIERTA
-  // si no quedó otro reclamo esperando; aceptar la cierra (RESUELTA), rechaza
+  // si no quedó otro reclamo esperando; aceptar habilita el punto 8 y rechaza
   // solos los demás pendientes y le muestra la dirección exacta a quien
   // reclamó.
   r = await pedir('POST', `/hallado/reclamos/${reclamoEsMioId}/aceptar`, { bearer: martin.bearer });
@@ -1118,7 +1132,8 @@ async function main() {
 
   r = await pedir('POST', `/hallado/reclamos/${reclamoAceptadoId}/aceptar`, { bearer: sofia.bearer });
   chequear('aceptar un reclamo', r.status === 200 && r.body.reclamo?.estado === 'ACEPTADO', '| ' + r.status + ' ' + r.body?.error?.codigo);
-  chequear('la publicación queda RESUELTA', r.body.reclamo?.publicacion?.estado === 'RESUELTA', '| ' + r.body.reclamo?.publicacion?.estado);
+  chequear('aceptar deja la publicación EN_RECLAMO', r.body.reclamo?.publicacion?.estado === 'EN_RECLAMO', '| ' + r.body.reclamo?.publicacion?.estado);
+  await devolver(reclamoAceptadoId, sofia, martin);
 
   r = await pedir('GET', `/hallado/publicaciones/${hallazgoId}`, { bearer: martin.bearer });
   chequear('con el reclamo aceptado se ve la dirección exacta', r.body.publicacion?.direccion === 'Thames 1500', '| ' + r.body.publicacion?.direccion);
@@ -1134,6 +1149,7 @@ async function main() {
   // Aceptar uno rechaza solos a los demás pendientes de esa publicación.
   r = await pedir('POST', `/hallado/reclamos/${reclamoLoEncontreId}/aceptar`, { bearer: sofia.bearer });
   chequear('aceptar un "Lo encontré"', r.status === 200 && r.body.reclamo?.estado === 'ACEPTADO', '| ' + r.status);
+  await devolver(reclamoLoEncontreId, martin, sofia);
 
   r = await pedir('GET', `/hallado/publicaciones/${perdidaReclamoId}`, { bearer: carla.bearer });
   chequear('el otro pendiente se rechazó solo', r.body.publicacion?.miReclamo?.estado === 'RECHAZADO' && r.body.publicacion?.miReclamo?.motivo === 'Se aceptó otro reclamo', '| ' + r.body.publicacion?.miReclamo?.motivo);
@@ -1215,6 +1231,7 @@ async function main() {
   r = await pedir('POST', `/hallado/publicaciones/${gataId}/reclamos`, { bearer: martin.bearer, body: { fotoUrl: 'https://example.com/gata.jpg', barrioId: 3 } });
   const reclamoGataId = r.body.reclamo?.id;
   await pedir('POST', `/hallado/reclamos/${reclamoGataId}/aceptar`, { bearer: sofia.bearer });
+  await devolver(reclamoGataId, martin, sofia);
 
   r = await pedir('GET', '/hallado/historial');
   chequear('historial sin sesión responde 401', r.status === 401, '| ' + r.body?.error?.codigo);
@@ -1450,6 +1467,7 @@ async function main() {
   chequear('abrir el detalle apaga la novedad', seguida?.hayNovedad === false && seguida?.estadoVisto === 'EN_RECLAMO', '| ' + seguida?.estadoVisto);
 
   r = await pedir('POST', `/hallado/reclamos/${reclamoSeguidaId}/aceptar`, { bearer: sofia.bearer });
+  await devolver(reclamoSeguidaId, sofia, carla);
   r = await pedir('GET', '/hallado/seguidas', { bearer: martin.bearer });
   seguida = r.body.seguidas?.find((s) => s.id === coincideId);
   chequear('resolverse también es novedad', seguida?.hayNovedad === true && seguida?.estado === 'RESUELTA', '| ' + seguida?.estado);

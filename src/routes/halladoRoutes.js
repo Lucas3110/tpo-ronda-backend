@@ -10,6 +10,7 @@ const historial = require('../controllers/halladoHistorialController');
 const valoraciones = require('../controllers/halladoValoracionController');
 const perfiles = require('../controllers/halladoPerfilController');
 const alertas = require('../controllers/halladoAlertaController');
+const encuentros = require('../controllers/halladoEncuentroController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -57,6 +58,11 @@ router.get('/reclamos/:id', autenticar, reclamos.obtener);
 // El publicador acepta o rechaza cada reclamo.
 router.post('/reclamos/:id/aceptar', autenticar, reclamos.aceptar);
 router.post('/reclamos/:id/rechazar', autenticar, reclamos.rechazar);
+
+router.get('/reclamos/:id/encuentro', autenticar, encuentros.obtener);
+router.post('/reclamos/:id/encuentro', autenticar, encuentros.proponer);
+router.post('/reclamos/:id/encuentro/aceptar', autenticar, encuentros.aceptar);
+router.post('/reclamos/:id/encuentro/concretar', autenticar, encuentros.concretar);
 
 // --- Punto 10: historial de casos resueltos ---
 router.get('/historial', autenticar, historial.listar);

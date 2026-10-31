@@ -5,7 +5,7 @@
 //
 // Qué es un caso
 // --------------
-// Un reclamo ACEPTADO (punto 7). Cada caso tiene dos lados y la misma fila
+// Un reclamo aceptado cuya devolución se confirmó (punto 8). Cada caso tiene dos lados y la misma fila
 // aparece en el historial de las dos personas, con el rol dado vuelta:
 //
 //   publiqué algo ENCONTRADO y acepté un "Es mío"   -> DEVOLVI
@@ -13,8 +13,7 @@
 //   publiqué algo PERDIDO y acepté un "Lo encontré" -> RECUPERE
 //   reclamé "Lo encontré" y me lo aceptaron         -> DEVOLVI
 //
-// La fecha del caso es la de la aceptación: es el momento en que el objeto
-// tiene a quién volver, y desde ahí corren los 7 días para valorar.
+// La fecha del caso es la entrega confirmada; desde ahí corren los 7 días para valorar.
 const { pool } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const { toCasoDto } = require('../dtos/halladoDto');
@@ -60,17 +59,17 @@ async function listar(usuarioId, filtros = {}) {
   }
 
   // Todos los casos de la persona, de los dos lados.
-  const condiciones = ["r.estado = 'ACEPTADO'", '(r.reclamante_id = ? OR p.usuario_id = ?)'];
+  const condiciones = ["r.estado = 'ACEPTADO' AND p.estado = 'RESUELTA' AND p.resuelto_en IS NOT NULL", '(r.reclamante_id = ? OR p.usuario_id = ?)'];
   const parametros = [usuarioId, usuarioId, usuarioId, usuarioId];
 
   // DATE() y no el DATETIME pelado: "hasta hoy" tiene que incluir lo de
   // hoy a la tarde.
   if (desde) {
-    condiciones.push('DATE(r.respondido_en) >= ?');
+    condiciones.push('DATE(p.resuelto_en) >= ?');
     parametros.push(desde);
   }
   if (hasta) {
-    condiciones.push('DATE(r.respondido_en) <= ?');
+    condiciones.push('DATE(p.resuelto_en) <= ?');
     parametros.push(hasta);
   }
 
@@ -83,7 +82,7 @@ async function listar(usuarioId, filtros = {}) {
     `${SELECT_RECLAMO.replace('SELECT r.*,', `SELECT r.*, ${ROL_SQL} AS rol,`)}
       WHERE ${condiciones.join(' AND ')}
       ${having}
-      ORDER BY r.respondido_en DESC, r.id DESC`,
+      ORDER BY p.resuelto_en DESC, r.id DESC`,
     parametros
   );
 
@@ -93,7 +92,7 @@ async function listar(usuarioId, filtros = {}) {
     `SELECT ${ROL_SQL} AS rol, COUNT(*) AS cantidad
        FROM hallado_reclamos r
        JOIN hallado_publicaciones p ON p.id = r.publicacion_id
-      WHERE r.estado = 'ACEPTADO' AND (r.reclamante_id = ? OR p.usuario_id = ?)
+      WHERE r.estado = 'ACEPTADO' AND p.estado = 'RESUELTA' AND p.resuelto_en IS NOT NULL AND (r.reclamante_id = ? OR p.usuario_id = ?)
       GROUP BY rol`,
     [usuarioId, usuarioId, usuarioId, usuarioId]
   );

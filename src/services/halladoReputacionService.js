@@ -9,7 +9,7 @@
 //
 // Qué cuenta como "devolución concretada"
 // ---------------------------------------
-// Un caso cerrado es un reclamo ACEPTADO (punto 7), y cada caso tiene dos
+// Un caso cerrado es una devolución confirmada (punto 8), y cada caso tiene dos
 // lados: alguien devolvió y alguien recuperó.
 //
 //   - Publicó algo ENCONTRADO y aceptó un "Es mío":      devolvió.
@@ -17,8 +17,7 @@
 //   - Publicó algo PERDIDO y aceptó un "Lo encontré":     recuperó.
 //   - Reclamó "Lo encontré" y se lo aceptaron:            devolvió.
 //
-// Se cuenta sobre los reclamos aceptados y no sobre las publicaciones
-// resueltas para no depender de que las dos cosas estén siempre en sincro.
+// Se cuentan solamente los reclamos aceptados con entrega registrada.
 //
 // Y las valoraciones (punto 10): cuántas positivas y negativas recibió, y
 // cuántos agradecimientos públicos le dejaron.
@@ -34,10 +33,10 @@ async function obtenerReputacion(usuarioId) {
         (SELECT COUNT(*) FROM hallado_valoraciones
           WHERE destinatario_id = ? AND agradecimiento IS NOT NULL) AS agradecimientos,
         (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
-          WHERE r.estado = 'ACEPTADO'
+          WHERE r.estado = 'ACEPTADO' AND p.estado = 'RESUELTA' AND p.resuelto_en IS NOT NULL
             AND ((p.usuario_id = ? AND r.tipo = 'ES_MIO') OR (r.reclamante_id = ? AND r.tipo = 'LO_ENCONTRE'))) AS devoluciones,
         (SELECT COUNT(*) FROM hallado_reclamos r JOIN hallado_publicaciones p ON p.id = r.publicacion_id
-          WHERE r.estado = 'ACEPTADO'
+          WHERE r.estado = 'ACEPTADO' AND p.estado = 'RESUELTA' AND p.resuelto_en IS NOT NULL
             AND ((p.usuario_id = ? AND r.tipo = 'LO_ENCONTRE') OR (r.reclamante_id = ? AND r.tipo = 'ES_MIO'))) AS recuperos`,
     [usuarioId, usuarioId, usuarioId, usuarioId, usuarioId, usuarioId, usuarioId]
   );

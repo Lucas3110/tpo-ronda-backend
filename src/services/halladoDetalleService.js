@@ -84,6 +84,7 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
     puedeReclamar:
       usuarioId !== null
       && !esPublicador
+      && !misReclamos.tieneAceptado
       && ESTADOS_RECLAMABLES.includes(estado)
       && misReclamos.intentosRestantes > 0
       && misReclamos.miReclamo?.estado !== 'PENDIENTE',
