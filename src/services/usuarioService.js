@@ -16,8 +16,9 @@ const FORMATO_NOMBRE = /^\p{L}[\p{L} '’-]*$/u;
 const FORMATO_TELEFONO = /^\+?[\d\s()-]{6,}$/;
 const FOTO_URL_MAX = 500;
 // http(s) para una imagen alojada, content:// y file:// para lo que devuelve
-// la galería de Android. Cualquier otro esquema se rechaza.
-const FORMATO_FOTO_URL = /^(https?:\/\/|content:\/\/|file:\/\/)\S+$/i;
+// la galería de Android, y /uploads/... para las que se suben a este mismo
+// backend (POST /hallado/fotos). Cualquier otro esquema se rechaza.
+const FORMATO_FOTO_URL = /^(https?:\/\/|content:\/\/|file:\/\/|\/uploads\/)\S+$/i;
 
 // Trae al usuario junto con el nombre de su zona, para armar el DTO de una.
 const SELECT_USUARIO = `
@@ -122,6 +123,7 @@ async function validarZona(zonaId) {
  *   - http(s)://...        una imagen alojada afuera
  *   - content://...        la Uri que devuelve la galería del dispositivo
  *   - file:///...          un archivo del almacenamiento interno
+ *   - /uploads/...         una foto subida a este backend (Hallado)
  *
  * Mandar cadena vacía o null borra la foto.
  */
@@ -139,11 +141,27 @@ function validarFotoUrl(fotoUrl) {
   }
   if (!FORMATO_FOTO_URL.test(limpio)) {
     throw ApiError.badRequest(
-      'La foto de perfil tiene que ser una URL http(s), content:// o file://',
+      'La foto de perfil tiene que ser una URL http(s), content://, file:// o /uploads/',
       'FOTO_URL_INVALIDA'
     );
   }
   return limpio;
+}
+
+/**
+ * Hallado, punto 2: si el teléfono se comparte con la otra parte de un
+ * reclamo aceptado. Es opcional en el PUT: si no viene, queda como estaba,
+ * así los clientes que no lo conocen no lo pisan.
+ */
+function validarTelefonoVisible(telefonoVisible) {
+  if (telefonoVisible === undefined || telefonoVisible === null) return null;
+  if (typeof telefonoVisible !== 'boolean') {
+    throw ApiError.badRequest(
+      'telefonoVisible tiene que ser true o false',
+      'TELEFONO_VISIBLE_INVALIDO'
+    );
+  }
+  return telefonoVisible ? 1 : 0;
 }
 
 // ---------------------------------------------------------------
@@ -162,15 +180,22 @@ async function obtenerDatosPersonales(usuarioId) {
 // PUT /api/usuarios/me
 // El email no se cambia acá: obliga a verificarlo con un OTP, y eso vive en
 // POST /usuarios/me/email/solicitar y /confirmar (authService).
-async function actualizarDatosPersonales(usuarioId, { nombre, telefono, zonaId, fotoUrl }) {
+async function actualizarDatosPersonales(
+  usuarioId,
+  { nombre, telefono, zonaId, fotoUrl, telefonoVisible }
+) {
   const nombreLimpio = validarNombre(nombre);
   const telefonoLimpio = validarTelefono(telefono);
   const zona = await validarZona(zonaId);
   const foto = validarFotoUrl(fotoUrl);
+  const visible = validarTelefonoVisible(telefonoVisible);
 
   await pool.query(
-    'UPDATE usuarios SET nombre = ?, telefono = ?, zona_id = ?, foto_url = ? WHERE id = ?',
-    [nombreLimpio, telefonoLimpio, zona, foto, usuarioId]
+    `UPDATE usuarios
+        SET nombre = ?, telefono = ?, zona_id = ?, foto_url = ?,
+            telefono_visible = COALESCE(?, telefono_visible)
+      WHERE id = ?`,
+    [nombreLimpio, telefonoLimpio, zona, foto, visible, usuarioId]
   );
 
   const usuario = await buscarUsuarioConZona(usuarioId);

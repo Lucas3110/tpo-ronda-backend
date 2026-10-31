@@ -50,6 +50,10 @@ const SELECT_RECLAMO = `
            WHERE f.publicacion_id = p.id ORDER BY f.orden, f.id LIMIT 1) AS pub_portada,
          ur.nombre AS reclamante_nombre,
          up.nombre AS publicador_nombre,
+         ur.telefono AS reclamante_telefono,
+         ur.telefono_visible AS reclamante_telefono_visible,
+         up.telefono AS publicador_telefono,
+         up.telefono_visible AS publicador_telefono_visible,
          z.nombre  AS barrio_nombre
     FROM hallado_reclamos r
     JOIN hallado_publicaciones p ON p.id = r.publicacion_id

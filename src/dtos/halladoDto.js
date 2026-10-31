@@ -148,6 +148,26 @@ function toReclamoDto(fila, usuarioId = null) {
     soyElReclamante,
     soyElPublicador,
     esperaMiRespuesta: soyElPublicador && fila.estado === 'PENDIENTE',
+
+    contacto: toContactoDto(fila, { soyElReclamante, soyElPublicador }),
+  };
+}
+
+// Punto 2: "La persona decide si su teléfono es visible para la otra parte
+// una vez aceptado un reclamo, o si prefiere comunicarse solo a través de
+// la app."
+//
+// Sólo existe con el reclamo ACEPTADO y sólo para las dos partes: un
+// tercero, o un reclamo pendiente, no ve nada. Y aun así el teléfono de la
+// otra persona viaja únicamente si ella eligió mostrarlo; si no, va null y
+// la app explica que se comunica por la app.
+function toContactoDto(fila, { soyElReclamante, soyElPublicador }) {
+  if (fila.estado !== 'ACEPTADO' || (!soyElReclamante && !soyElPublicador)) return null;
+
+  const prefijo = soyElReclamante ? 'publicador' : 'reclamante';
+  const visible = Boolean(fila[`${prefijo}_telefono_visible`]);
+  return {
+    telefono: visible ? fila[`${prefijo}_telefono`] ?? null : null,
   };
 }
 
@@ -225,6 +245,21 @@ function toReputacionDto(fila) {
   };
 }
 
+// El perfil público (punto 2): reputación, insignias y antigüedad. A
+// propósito NO lleva teléfono, email, barrio ni publicaciones.
+function toPerfilPublicoDto(usuario, reputacion, insignias) {
+  return {
+    id: usuario.id,
+    nombre: usuario.nombre,
+    fotoUrl: usuario.foto_url ?? null,
+    miembroDesde: usuario.creado_en,
+    // Ya calculada, para que la app no tenga que hacer cuentas con fechas.
+    antiguedadDias: Number(usuario.antiguedad_dias ?? 0),
+    reputacion: toReputacionDto(reputacion),
+    insignias,
+  };
+}
+
 // Una valoración entre las dos partes de un caso.
 function toValoracionDto(fila) {
   if (!fila) return null;
@@ -271,6 +306,7 @@ module.exports = {
   toDetalleDto,
   toPublicadorDto,
   toReputacionDto,
+  toPerfilPublicoDto,
   toReclamoDto,
   toReclamoResumenDto,
   toCasoDto,

@@ -8,6 +8,7 @@ const controller = require('../controllers/halladoPublicacionController');
 const reclamos = require('../controllers/halladoReclamoController');
 const historial = require('../controllers/halladoHistorialController');
 const valoraciones = require('../controllers/halladoValoracionController');
+const perfiles = require('../controllers/halladoPerfilController');
 const { autenticar } = require('../middlewares/auth');
 const { autenticarOpcional } = require('../middlewares/authOpcional');
 
@@ -61,6 +62,11 @@ router.get('/historial', autenticar, historial.listar);
 
 // Cada parte valora a la otra dentro de los 7 días de la devolución.
 router.post('/reclamos/:id/valoracion', autenticar, valoraciones.valorar);
+
+// --- Punto 2: el perfil público (reputación, insignias y antigüedad) ---
+// Público: el detalle de una publicación (punto 4) lleva a este perfil
+// antes de que la persona decida reclamar.
+router.get('/usuarios/:id/perfil', perfiles.perfilPublico);
 
 // Los agradecimientos públicos de una persona, para su perfil (punto 2).
 router.get('/usuarios/:id/agradecimientos', valoraciones.agradecimientos);

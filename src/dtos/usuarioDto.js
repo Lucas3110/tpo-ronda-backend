@@ -34,6 +34,8 @@ function toUsuarioDto(usuario) {
     telefono: usuario.telefono,
     zona: toZonaDto(usuario),
     fotoUrl: usuario.foto_url ?? null,
+    // Hallado, punto 2: si comparte el teléfono con un reclamo aceptado.
+    telefonoVisible: Boolean(usuario.telefono_visible),
     emailVerificado: Boolean(usuario.email_verificado),
     creadoEn: usuario.creado_en,
   };

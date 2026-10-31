@@ -44,4 +44,58 @@ async function obtenerReputacion(usuarioId) {
   return filas[0];
 }
 
-module.exports = { obtenerReputacion };
+// ---------------------------------------------------------------
+// Insignias
+// ---------------------------------------------------------------
+// "Al alcanzar ciertas metas (por ejemplo, 5 devoluciones concretadas) el
+// perfil muestra una insignia visible, como 'Vecino solidario'."
+//
+// Se calculan, no se guardan: salen de la reputación, y guardarlas sería
+// tener dos fuentes de verdad que se pueden desincronizar. El costo es nulo,
+// porque la reputación ya se consulta para mostrar el perfil.
+//
+// Cada una dice qué contador mira y cuál es la meta. Así la app puede
+// mostrar también el progreso hacia las que faltan ("3 de 5").
+const INSIGNIAS = [
+  {
+    codigo: 'PRIMERA_DEVOLUCION',
+    nombre: 'Primera devolución',
+    descripcion: 'Devolvió su primer objeto a su dueño.',
+    contador: 'devoluciones',
+    meta: 1,
+  },
+  {
+    codigo: 'VECINO_SOLIDARIO',
+    nombre: 'Vecino solidario',
+    descripcion: 'Concretó 5 devoluciones.',
+    contador: 'devoluciones',
+    meta: 5,
+  },
+  {
+    codigo: 'MUY_RECOMENDADO',
+    nombre: 'Muy recomendado',
+    descripcion: 'Recibió 10 valoraciones positivas.',
+    contador: 'valoraciones_positivas',
+    meta: 10,
+  },
+  {
+    codigo: 'AGRADECIDO',
+    nombre: 'Agradecido por la comunidad',
+    descripcion: 'Recibió 3 agradecimientos públicos.',
+    contador: 'agradecimientos',
+    meta: 3,
+  },
+];
+
+function calcularInsignias(reputacion) {
+  return INSIGNIAS.map(({ contador, meta, ...insignia }) => {
+    const actual = Number(reputacion?.[contador] ?? 0);
+    return {
+      ...insignia,
+      obtenida: actual >= meta,
+      progreso: { actual: Math.min(actual, meta), meta },
+    };
+  });
+}
+
+module.exports = { obtenerReputacion, calcularInsignias };
