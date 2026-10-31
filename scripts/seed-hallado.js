@@ -14,6 +14,12 @@
 // parte (con agradecimiento publico) y uno en "Recupere" todavia sin
 // valorar. Sin ese flag solo siembra lo que se busca.
 //
+// Siempre crea ademas perfil.demo@hallado.demo (clave demo1234), la cuenta
+// para mostrar el perfil del punto 2: un año de antiguedad, casos resueltos
+// para tres de las cuatro insignias y el progreso de la cuarta, valoraciones
+// positivas y una negativa, agradecimientos publicos, y reclamos aceptados
+// con una contraparte que comparte el telefono y otra que no.
+//
 // Es idempotente: borra lo que sembro antes y lo vuelve a crear, asi siempre
 // queda el mismo set conocido.
 //
@@ -25,10 +31,67 @@ const PASSWORD_DEMO = 'demo1234';
 const DIAS_DE_VIGENCIA = 30;
 
 // Dominio propio para poder borrarlos sin tocar nada mas.
+//
+// Lucia no comparte el telefono y los otros dos si: en un reclamo aceptado
+// se ven los dos casos del punto 2 (el numero, o "prefiere la app").
 const VECINOS = [
-  { email: 'vecina.demo@hallado.demo', nombre: 'Lucía Ferrari', telefono: '11 5555-1111', barrio: 'Palermo' },
-  { email: 'vecino.demo@hallado.demo', nombre: 'Diego Arrieta', telefono: '11 5555-2222', barrio: 'Belgrano' },
-  { email: 'kiosco.demo@hallado.demo', nombre: 'Kiosco La Esquina', telefono: '11 5555-3333', barrio: 'Caballito' },
+  { email: 'vecina.demo@hallado.demo', nombre: 'Lucía Ferrari', telefono: '11 5555-1111', barrio: 'Palermo', telefonoVisible: false },
+  { email: 'vecino.demo@hallado.demo', nombre: 'Diego Arrieta', telefono: '11 5555-2222', barrio: 'Belgrano', telefonoVisible: true },
+  { email: 'kiosco.demo@hallado.demo', nombre: 'Kiosco La Esquina', telefono: '11 5555-3333', barrio: 'Caballito', telefonoVisible: true },
+];
+
+// La cuenta del perfil (punto 2). Registrada hace mas de un año para que la
+// antiguedad se lea en años y no en dias.
+const CUENTA_PERFIL = {
+  email: 'perfil.demo@hallado.demo',
+  nombre: 'Martina Ruiz',
+  telefono: '11 5555-0000',
+  barrio: 'Almagro',
+  foto: 'https://picsum.photos/seed/hallado-perfil-demo/400/400',
+  antiguedadDias: 400,
+};
+
+// Sus casos resueltos, uno por reclamo aceptado.
+//
+//   devolvi   true si Martina devolvio el objeto, false si lo recupero.
+//   publica   quien publico: 'yo' (Martina) o 'vecino'. Junto con devolvi
+//             define el tipo de la publicacion y del reclamo.
+//   vecino    indice en VECINOS de la contraparte.
+//   dias      hace cuantos dias se acepto el reclamo.
+//   valoracion la que le dejo la contraparte (null si no la valoro). El
+//             agradecimiento solo lo deja quien recupero, o sea en los
+//             casos devolvi.
+//
+// Suman 7 devoluciones (Primera devolucion y Vecino solidario), 5
+// agradecimientos (Agradecido por la comunidad) y 8 positivas: Muy
+// recomendado queda en 8 de 10, para mostrar tambien el progreso. La
+// negativa muestra que la reputacion cuenta las dos.
+//
+// Los de mas de 7 dias Martina ya los valoro (la ventana del punto 10
+// cerro); el de hace 2 dias todavia lo puede valorar en la demo.
+const CASOS_PERFIL = [
+  { devolvi: true, publica: 'yo', vecino: 0, dias: 300, t: 'Encontré un llavero con un dije de gato', cat: 'Llaves', barrio: 'Almagro',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Súper atenta, me esperó a la salida del trabajo.', agradecimiento: 'Gracias Martina, eran las llaves de casa y del trabajo. Me salvaste.' } },
+  { devolvi: false, publica: 'yo', vecino: 1, dias: 250, t: 'Perdí una carpeta con apuntes de la facultad', cat: 'Otros', barrio: 'Almagro',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Coordinamos rápido, muy amable.' } },
+  { devolvi: true, publica: 'yo', vecino: 1, dias: 210, t: 'Encontré una mochila escolar azul', cat: 'Otros', barrio: 'Caballito',
+    valoracion: { tipo: 'POSITIVA', mensaje: null, agradecimiento: 'Mi hijo tenía la tarea adentro. ¡Mil gracias!' } },
+  { devolvi: true, publica: 'yo', vecino: 2, dias: 150, t: 'Encontré un celular Samsung en la plaza', cat: 'Electronica', barrio: 'Almagro',
+    valoracion: null },
+  { devolvi: false, publica: 'vecino', vecino: 2, dias: 120, t: 'Encontramos un paraguas verde en el local', cat: 'Otros', barrio: 'Caballito',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Pasó a buscarlo el mismo día.' } },
+  { devolvi: true, publica: 'vecino', vecino: 0, dias: 90, t: 'Se perdió mi perro Rocco', cat: 'Mascotas', barrio: 'Palermo',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Lo encontró y me escribió enseguida.', agradecimiento: 'Rocco ya está en casa gracias a vos. Gracias por frenar y fijarte la chapita.' } },
+  { devolvi: false, publica: 'yo', vecino: 0, dias: 60, t: 'Perdí mis anteojos de sol', cat: 'Otros', barrio: 'Almagro',
+    valoracion: { tipo: 'NEGATIVA', mensaje: 'Tardó varios días en contestar los mensajes.' } },
+  { devolvi: true, publica: 'yo', vecino: 1, dias: 45, t: 'Encontré un DNI en el colectivo', cat: 'Documentos', barrio: 'Belgrano',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Todo perfecto.', agradecimiento: 'Me ahorraste el trámite de sacar el DNI de nuevo. ¡Gracias!' } },
+  { devolvi: true, publica: 'vecino', vecino: 2, dias: 20, t: 'Perdimos las llaves del local', cat: 'Llaves', barrio: 'Caballito',
+    valoracion: null },
+  { devolvi: false, publica: 'yo', vecino: 1, dias: 10, t: 'Se escapó mi gato Simón', cat: 'Mascotas', barrio: 'Almagro',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Simón estaba muy bien cuidado.' } },
+  { devolvi: true, publica: 'yo', vecino: 0, dias: 2, t: 'Encontré una billetera violeta', cat: 'Documentos', barrio: 'Almagro',
+    valoracion: { tipo: 'POSITIVA', mensaje: 'Me la trajo con todo adentro.', agradecimiento: 'Qué alivio, tenía todas las tarjetas. Gracias por la honestidad.' } },
 ];
 
 // Las ENCONTRE son las que ve alguien que perdio algo, que es el caso que mas
@@ -114,6 +177,9 @@ async function main() {
 
   console.log(`${total} publicaciones de vecinos (${ENCONTRADAS.length} encontradas, ${PERDIDAS.length} perdidas).`);
 
+  await sembrarCuentaPerfil(vecinos);
+  console.log(`Cuenta del perfil: ${CUENTA_PERFIL.email} / ${PASSWORD_DEMO} con ${CASOS_PERFIL.length} casos resueltos.`);
+
   if (usuario) {
     const id = await idDeUsuario(usuario);
     if (!id) {
@@ -159,7 +225,7 @@ async function idDeUsuario(email) {
 // los titulos de MIAS. Por titulo y no por fecha para no llevarse puesta una
 // publicacion que hayas cargado vos a mano probando.
 async function borrarLoSembrado(usuario) {
-  const emails = VECINOS.map((v) => v.email);
+  const emails = [...VECINOS.map((v) => v.email), CUENTA_PERFIL.email];
   await pool.query(
     `DELETE FROM usuarios WHERE email IN (${emails.map(() => '?').join(',')})`,
     emails
@@ -182,13 +248,80 @@ async function crearVecinos() {
   for (const v of VECINOS) {
     const barrioId = await idPorNombre('zonas', v.barrio);
     const [res] = await pool.query(
-      `INSERT INTO usuarios (email, password_hash, nombre, telefono, zona_id, email_verificado)
-       VALUES (?, ?, ?, ?, ?, 1)`,
-      [v.email, hash, v.nombre, v.telefono, barrioId]
+      `INSERT INTO usuarios (email, password_hash, nombre, telefono, zona_id, telefono_visible, email_verificado)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      [v.email, hash, v.nombre, v.telefono, barrioId, v.telefonoVisible ? 1 : 0]
     );
     ids.push(res.insertId);
   }
   return ids;
+}
+
+// La cuenta del punto 2 y sus casos resueltos (ver CASOS_PERFIL).
+async function sembrarCuentaPerfil(vecinos) {
+  const c = CUENTA_PERFIL;
+  const [res] = await pool.query(
+    `INSERT INTO usuarios
+       (email, password_hash, nombre, telefono, zona_id, foto_url, telefono_visible, email_verificado, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, 1, 1, DATE_SUB(NOW(), INTERVAL ? DAY))`,
+    [c.email, await bcrypt.hash(PASSWORD_DEMO, 10), c.nombre, c.telefono, await idPorNombre('zonas', c.barrio), c.foto, c.antiguedadDias]
+  );
+  const yo = res.insertId;
+
+  for (let i = 0; i < CASOS_PERFIL.length; i++) {
+    const caso = CASOS_PERFIL[i];
+    const vecino = vecinos[caso.vecino];
+    const publicoYo = caso.publica === 'yo';
+    // Quien devuelve es el que encontro: si Martina devolvio y publico, la
+    // publicacion es un ENCONTRE; si devolvio reclamando, era un PERDI ajeno.
+    const tipoPublicacion = caso.devolvi === publicoYo ? 'ENCONTRE' : 'PERDI';
+
+    const publicacionId = await crearPublicacion(
+      { ...caso, dias: caso.dias + 1, fotos: 1 },
+      tipoPublicacion,
+      publicoYo ? yo : vecino,
+      300 + i,
+      { estado: 'RESUELTA', venceEnDias: DIAS_DE_VIGENCIA - caso.dias }
+    );
+    await pool.query(
+      'UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL ? DAY) WHERE id = ?',
+      [caso.dias, publicacionId]
+    );
+
+    const reclamoId = await crearReclamo({
+      publicacionId,
+      reclamanteId: publicoYo ? vecino : yo,
+      tipo: tipoPublicacion === 'ENCONTRE' ? 'ES_MIO' : 'LO_ENCONTRE',
+      estado: 'ACEPTADO',
+      diasRespondido: caso.dias,
+      descripcion: tipoPublicacion === 'ENCONTRE' ? 'Es mío, lo reconozco por la foto.' : 'Lo encontré y lo tengo guardado.',
+      barrio: tipoPublicacion === 'PERDI' ? caso.barrio : null,
+      foto: `https://picsum.photos/seed/hallado-perfil-reclamo-${i}/800/600`,
+    });
+    await pool.query(
+      'UPDATE hallado_reclamos SET creado_en = DATE_SUB(respondido_en, INTERVAL 1 DAY) WHERE id = ?',
+      [reclamoId]
+    );
+
+    if (caso.valoracion) {
+      await crearValoracion(reclamoId, vecino, yo, caso.dias, caso.valoracion);
+    }
+    if (caso.dias > 7) {
+      await crearValoracion(reclamoId, yo, vecino, caso.dias, {
+        tipo: 'POSITIVA',
+        mensaje: null,
+        agradecimiento: caso.devolvi ? null : 'Gracias por devolvérmelo.',
+      });
+    }
+  }
+}
+
+async function crearValoracion(reclamoId, autorId, destinatarioId, diasDelCaso, { tipo, mensaje, agradecimiento }) {
+  await pool.query(
+    `INSERT INTO hallado_valoraciones (reclamo_id, autor_id, destinatario_id, tipo, mensaje, agradecimiento, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
+    [reclamoId, autorId, destinatarioId, tipo, mensaje ?? null, agradecimiento ?? null, Math.max(diasDelCaso - 1, 0)]
+  );
 }
 
 // Coordenadas del barrio con un corrimiento chico y determinista, para que
