@@ -190,19 +190,19 @@ const CASOS_PERFIL = [
 // "¿Cuando?": hoy (0), ultimos 3 dias (<=3), ultima semana (<=7) y un rango.
 const ENCONTRADAS = [
   { clave: 'llaves', t: 'Llavero con llaves y control de alarma', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 2, desc: 'Lo encontré en la vereda de Plaza Armenia, cerca de la feria.' },
-  { clave: 'billetera', t: 'Billetera de cuero marrón', cat: 'Documentos', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Estaba arriba de un banco. Tiene documentos adentro, por eso no subo fotos del interior.' },
-  { clave: 'celular', t: 'iPhone 13 negro con funda transparente', cat: 'Electronica', barrio: 'Belgrano', dias: 1, coords: true, fotos: 3, desc: 'Lo dejaron en el asiento del colectivo. Está bloqueado, no pude avisarle a nadie.' },
-  { clave: 'perro', t: 'Perro caniche blanco sin collar', cat: 'Mascotas', barrio: 'Caballito', dias: 1, coords: true, fotos: 2, desc: 'Andaba solo por Parque Rivadavia. Lo tengo en casa, es muy manso.' },
-  { clave: 'campera', t: 'Campera de jean azul talle M', cat: 'Ropa', barrio: 'Almagro', dias: 2, coords: false, fotos: 1, desc: 'Quedó colgada en el respaldo de una silla en un bar.' },
-  { clave: 'anteojos', t: 'Anteojos recetados con funda negra', cat: 'Otros', barrio: 'Recoleta', dias: 2, coords: true, fotos: 1, desc: 'Estaban en el pasto, frente a la facultad.' },
+  { clave: 'billetera', t: 'Billetera de cuero negra', cat: 'Documentos', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Estaba arriba de un banco. Tiene documentos adentro, por eso no subo fotos del interior.' },
+  { clave: 'celular', t: 'Celular Android negro', cat: 'Electronica', barrio: 'Belgrano', dias: 1, coords: true, fotos: 3, desc: 'Lo dejaron en el asiento del colectivo. Está bloqueado, no pude avisarle a nadie.' },
+  { clave: 'perro', t: 'Cachorro sin collar, blanco y negro', cat: 'Mascotas', barrio: 'Caballito', dias: 1, coords: true, fotos: 2, desc: 'Andaba solo por Parque Rivadavia. Lo tengo en casa, es muy manso.' },
+  { clave: 'campera', t: 'Campera inflable gris talle M', cat: 'Ropa', barrio: 'Almagro', dias: 2, coords: false, fotos: 1, desc: 'Quedó colgada en el respaldo de una silla en un bar.' },
+  { clave: 'anteojos', t: 'Anteojos recetados de marco dorado', cat: 'Otros', barrio: 'Recoleta', dias: 2, coords: true, fotos: 1, desc: 'Estaban en el pasto, frente a la facultad.' },
   { clave: 'dni', t: 'DNI a nombre de M. Pérez', cat: 'Documentos', barrio: 'Flores', dias: 3, coords: false, fotos: 0, desc: 'No subo foto por los datos. Escribime y lo devolvemos.' },
-  { clave: 'llaves', t: 'Juego de llaves con llavero de Boca', cat: 'Llaves', barrio: 'San Telmo', dias: 4, coords: true, fotos: 1, desc: 'Las encontré en la feria de Plaza Dorrego, un domingo a la tarde.' },
+  { clave: 'llaves', t: 'Juego de llaves con un llavero rojo', cat: 'Llaves', barrio: 'San Telmo', dias: 4, coords: true, fotos: 1, desc: 'Las encontré en la feria de Plaza Dorrego, un domingo a la tarde.' },
   { clave: 'auriculares', t: 'Auriculares inalámbricos en su estuche', cat: 'Electronica', barrio: 'Villa Urquiza', dias: 5, coords: true, fotos: 2, desc: 'Estaban en el andén. Los guardé por si aparece el dueño.' },
-  { clave: 'gato', t: 'Gato naranja con collar rojo', cat: 'Mascotas', barrio: 'Belgrano', dias: 6, coords: true, fotos: 2, desc: 'Tiene collar pero sin chapita. Está en casa, sano.' },
-  { clave: 'mochila', t: 'Mochila negra con una notebook adentro', cat: 'Otros', barrio: 'Palermo', dias: 8, coords: true, fotos: 2, desc: 'La dejaron en el gimnasio. La tiene guardada el encargado.' },
+  { clave: 'gato', t: 'Gatito gris atigrado', cat: 'Mascotas', barrio: 'Belgrano', dias: 6, coords: true, fotos: 2, desc: 'Apareció en el palier del edificio. Está en casa, sano.' },
+  { clave: 'mochila', t: 'Mochila gris con una notebook adentro', cat: 'Otros', barrio: 'Palermo', dias: 8, coords: true, fotos: 2, desc: 'La dejaron en el gimnasio. La tiene guardada el encargado.' },
   { clave: 'sube', t: 'Tarjeta SUBE suelta', cat: 'Documentos', barrio: 'Caballito', dias: 10, coords: false, fotos: 1, desc: 'Estaba en el piso del subte. Tiene saldo.' },
-  { clave: 'bufanda', t: 'Bufanda tejida gris', cat: 'Ropa', barrio: 'Recoleta', dias: 15, coords: false, fotos: 1, desc: 'Se le cayó a alguien en la plaza.' },
-  { clave: 'reloj', t: 'Reloj Casio plateado', cat: 'Electronica', barrio: 'Almagro', dias: 20, coords: true, fotos: 1, desc: 'Lo encontré en el vestuario del club.' },
+  { clave: 'bufanda', t: 'Bufanda tejida bordó', cat: 'Ropa', barrio: 'Recoleta', dias: 15, coords: false, fotos: 1, desc: 'Se le cayó a alguien en la plaza.' },
+  { clave: 'reloj', t: 'Reloj plateado con malla de metal', cat: 'Electronica', barrio: 'Almagro', dias: 20, coords: true, fotos: 1, desc: 'Lo encontré en el vestuario del club.' },
 ];
 
 // Las PERDI son las que ve alguien que encontro algo. Alcanzan cinco: sirven
@@ -210,9 +210,9 @@ const ENCONTRADAS = [
 const PERDIDAS = [
   { clave: 'llaves', t: 'Perdí las llaves de mi auto', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Llavero con control de un Gol Trend. Se me cayeron entre la plaza y la parada.' },
   { clave: 'billetera', t: 'Perdí mi billetera con el DNI', cat: 'Documentos', barrio: 'Belgrano', dias: 1, coords: true, fotos: 0, desc: 'Billetera negra. Lo que más me importa es el DNI.' },
-  { clave: 'gato', t: 'Se perdió mi gata siamesa', cat: 'Mascotas', barrio: 'Caballito', dias: 2, coords: true, fotos: 2, desc: 'Se escapó por el balcón. Es muy asustadiza, no se deja agarrar.' },
-  { clave: 'campera', t: 'Perdí una campera de polar roja', cat: 'Ropa', barrio: 'Flores', dias: 4, coords: false, fotos: 1, desc: 'La dejé colgada en el respaldo de una silla.' },
-  { clave: 'auriculares', t: 'Perdí mis auriculares con cable', cat: 'Electronica', barrio: 'Palermo', dias: 6, coords: false, fotos: 1, desc: 'Son unos Sony negros, con el cable medio pelado.' },
+  { clave: 'gato', t: 'Se perdió mi gata gris atigrada', cat: 'Mascotas', barrio: 'Caballito', dias: 2, coords: true, fotos: 2, desc: 'Se escapó por el balcón. Es muy asustadiza, no se deja agarrar.' },
+  { clave: 'campera', t: 'Perdí una campera inflable gris', cat: 'Ropa', barrio: 'Flores', dias: 4, coords: false, fotos: 1, desc: 'La dejé colgada en el respaldo de una silla.' },
+  { clave: 'auriculares', t: 'Perdí mis auriculares inalámbricos', cat: 'Electronica', barrio: 'Palermo', dias: 6, coords: false, fotos: 1, desc: 'Son negros, venían con el estuche de carga.' },
 ];
 
 // Las cuatro de "Mis publicaciones", una por estado.
@@ -222,13 +222,13 @@ const PERDIDAS = [
 // IF(estado='ABIERTA' AND vence_en<NOW(),'VENCIDA',estado). Poner
 // estado='VENCIDA' a mano mostraria el badge pero no el mecanismo.
 const MIAS = [
-  { clave: 'paraguas', t: 'Encontré un paraguas azul en el subte', cat: 'Otros', barrio: 'Almagro', dias: 1, estado: 'ABIERTA', venceEnDias: 29, fotos: 1, desc: 'Quedó en el asiento de la línea A. Lo tengo guardado.' },
-  { clave: 'campera', t: 'Encontré una campera de niño', cat: 'Ropa', barrio: 'Flores', dias: 5, estado: 'EN_RECLAMO', venceEnDias: 25, fotos: 1, desc: 'Talle 6, con dibujos de dinosaurios. Ya me escribió alguien.' },
-  { clave: 'perro', t: 'Encontré un perro salchicha', cat: 'Mascotas', barrio: 'Caballito', dias: 20, estado: 'RESUELTA', venceEnDias: 10, fotos: 2, desc: 'Apareció la dueña y se lo llevó. Lo dejo publicado como referencia.' },
+  { clave: 'paraguas', t: 'Encontré un paraguas negro en el subte', cat: 'Otros', barrio: 'Almagro', dias: 1, estado: 'ABIERTA', venceEnDias: 29, fotos: 1, desc: 'Quedó en el asiento de la línea A. Lo tengo guardado.' },
+  { clave: 'campera', t: 'Encontré una campera inflable gris', cat: 'Ropa', barrio: 'Flores', dias: 5, estado: 'EN_RECLAMO', venceEnDias: 25, fotos: 1, desc: 'Talle M, quedó en el respaldo de una silla. Ya me escribió alguien.' },
+  { clave: 'perro', t: 'Encontré un cachorro sin collar', cat: 'Mascotas', barrio: 'Caballito', dias: 20, estado: 'RESUELTA', venceEnDias: 10, fotos: 2, desc: 'Apareció la dueña y se lo llevó. Lo dejo publicado como referencia.' },
   { clave: 'bufanda', t: 'Perdí mi bufanda en el colectivo', cat: 'Ropa', barrio: 'Palermo', dias: 40, estado: 'ABIERTA', venceEnDias: -10, fotos: 0, desc: 'Ya pasaron los 30 días, esta quedó vencida.' },
   // Resuelta del otro lado: la persona PERDIO algo y un vecino se lo
   // devolvio. Es el caso de "Recupere" en el historial (punto 10).
-  { clave: 'billetera', t: 'Perdí mi billetera en el subte', cat: 'Documentos', barrio: 'Belgrano', dias: 6, estado: 'RESUELTA', venceEnDias: 24, fotos: 1, desc: 'Billetera marrón con el DNI y la SUBE. Ya apareció.' },
+  { clave: 'billetera', t: 'Perdí mi billetera en el subte', cat: 'Documentos', barrio: 'Belgrano', dias: 6, estado: 'RESUELTA', venceEnDias: 24, fotos: 1, desc: 'Billetera negra con el DNI y la SUBE. Ya apareció.' },
 ];
 
 // Los reclamos y valoraciones de ejemplo (puntos 7 y 10). Cuelgan de las
@@ -316,10 +316,25 @@ async function idDeUsuario(email) {
   return filas.length ? filas[0].id : null;
 }
 
+// Titulos que MIAS uso en versiones anteriores de este script.
+//
+// Hace falta porque la limpieza es por titulo: el dia que se renombra una
+// publicacion, la vieja deja de coincidir y queda para siempre en la base.
+// Pasa en silencio y se nota tarde, cuando "Mis publicaciones" muestra ocho
+// en vez de cinco, con la mitad repetida.
+//
+// Si renombras algo de MIAS, agrega aca el titulo viejo.
+const TITULOS_ANTERIORES = [
+  'Encontré un paraguas azul en el subte',
+  'Encontré una campera de niño',
+  'Encontré un perro salchicha',
+];
+
 // Borra lo sembrado antes: las de los vecinos demo (se van en cascada al
 // borrar los usuarios) y, si se paso --usuario, las que tengan exactamente
-// los titulos de MIAS. Por titulo y no por fecha para no llevarse puesta una
-// publicacion que hayas cargado vos a mano probando.
+// los titulos de MIAS o alguno de los que uso antes. Por titulo y no por
+// fecha para no llevarse puesta una publicacion que hayas cargado vos a mano
+// probando.
 async function borrarLoSembrado(usuario) {
   const emails = [...VECINOS.map((v) => v.email), CUENTA_PERFIL.email];
   await pool.query(
@@ -330,7 +345,7 @@ async function borrarLoSembrado(usuario) {
   if (!usuario) return;
   const id = await idDeUsuario(usuario);
   if (!id) return;
-  const titulos = MIAS.map((m) => m.t);
+  const titulos = [...MIAS.map((m) => m.t), ...TITULOS_ANTERIORES];
   await pool.query(
     `DELETE FROM hallado_publicaciones
       WHERE usuario_id = ? AND titulo IN (${titulos.map(() => '?').join(',')})`,
@@ -506,7 +521,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
   //    publicacion que esta EN_RECLAMO: sin un reclamo pendiente de verdad,
   //    el backend la devolveria a ABIERTA al primer vencimiento perezoso.
   await crearReclamo({
-    publicacionId: mias['Encontré una campera de niño'],
+    publicacionId: mias['Encontré una campera inflable gris'],
     reclamanteId: vecinos[0],
     tipo: 'ES_MIO',
     estado: 'PENDIENTE',
@@ -529,7 +544,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
   //    valoro y dejo un agradecimiento publico; la persona todavia puede
   //    valorarla (quedan 5 dias).
   const reclamoPerro = await crearReclamo({
-    publicacionId: mias['Encontré un perro salchicha'],
+    publicacionId: mias['Encontré un cachorro sin collar'],
     reclamanteId: vecinos[1],
     tipo: 'ES_MIO',
     estado: 'ACEPTADO',
@@ -539,7 +554,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
   });
   await pool.query(
     "UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL 2 DAY) WHERE id = ?",
-    [mias['Encontré un perro salchicha']]
+    [mias['Encontré un cachorro sin collar']]
   );
   await pool.query(
     `INSERT INTO hallado_valoraciones (reclamo_id, autor_id, destinatario_id, tipo, mensaje, agradecimiento)
