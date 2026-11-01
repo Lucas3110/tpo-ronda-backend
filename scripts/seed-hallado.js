@@ -24,10 +24,98 @@
 // queda el mismo set conocido.
 //
 // NO se usa en la entrega final: son datos de prueba.
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../src/config/db');
+// La misma carpeta a la que la app sube las fotos, y que el backend sirve
+// como estatica en /uploads. Reusarla es lo que hace que las fotos de la
+// demo se vean sin tocar nada mas.
+const { CARPETA: CARPETA_UPLOADS } = require('../src/services/halladoFotoService');
 
 const PASSWORD_DEMO = 'demo1234';
+
+// ---------------------------------------------------------------
+// Las fotos de las publicaciones de ejemplo
+// ---------------------------------------------------------------
+// Cada publicacion tiene una `clave` que dice QUE es ("llaves", "perro",
+// "billetera"). Si en scripts/fotos-demo/ hay un archivo que empieza con esa
+// clave, se copia a uploads/ y la publicacion queda con esa foto; si no, cae
+// en una imagen aleatoria de picsum, que es lo que habia antes.
+//
+// Dos razones para preferir los archivos locales:
+//
+//   1. Una foto al azar de un paisaje abajo de "Billetera de cuero marron"
+//      no se entiende, y la demo se graba en video.
+//   2. Durante la grabacion no depende de internet ni de que un servicio de
+//      terceros ande. Las sirve el mismo backend desde /uploads.
+//
+// Los archivos se nombran <clave>-1.jpg, <clave>-2.jpg, ... Si una
+// publicacion pide tres fotos y solo hay una, repite la que haya.
+const CARPETA_FOTOS = path.join(__dirname, 'fotos-demo');
+const EXTENSIONES = ['.jpg', '.jpeg', '.png', '.webp'];
+
+// Lee la carpeta una sola vez y arma { clave: [archivo, archivo, ...] }.
+function leerFotosDemo() {
+  let nombres;
+  try {
+    nombres = fs.readdirSync(CARPETA_FOTOS);
+  } catch {
+    return new Map(); // la carpeta no existe: se usa picsum y listo
+  }
+
+  const porClave = new Map();
+  for (const nombre of nombres.sort()) {
+    const extension = path.extname(nombre).toLowerCase();
+    if (!EXTENSIONES.includes(extension)) continue;
+    // "llaves-2.jpg" -> "llaves". Tambien vale "llaves.jpg".
+    const clave = path.basename(nombre, extension).replace(/-\d+$/, '');
+    if (!porClave.has(clave)) porClave.set(clave, []);
+    porClave.get(clave).push(nombre);
+  }
+  return porClave;
+}
+
+// Copia el archivo a uploads/ con un nombre estable y devuelve la url
+// relativa que guarda la base. Estable = la misma en cada corrida, asi no se
+// llena uploads/ de copias.
+function publicarFotoDemo(carpetaUploads, nombreOrigen, clave, indice) {
+  const extension = path.extname(nombreOrigen).toLowerCase();
+  const destino = `demo-${clave}-${indice}${extension}`;
+  // uploads/ esta en el .gitignore, asi que en una copia recien clonada del
+  // repo no existe hasta que alguien sube la primera foto desde la app.
+  fs.mkdirSync(carpetaUploads, { recursive: true });
+  fs.copyFileSync(
+    path.join(CARPETA_FOTOS, nombreOrigen),
+    path.join(carpetaUploads, destino)
+  );
+  return `/uploads/${destino}`;
+}
+
+// La url de la foto numero `indice` de una publicacion con esa clave.
+function urlDeFoto(fotosDemo, carpetaUploads, clave, indice, idPublicacion) {
+  const disponibles = clave ? fotosDemo.get(clave) : null;
+  if (disponibles && disponibles.length > 0) {
+    // Si pide mas fotos de las que hay, repite dando la vuelta.
+    const cual = indice % disponibles.length;
+    return publicarFotoDemo(carpetaUploads, disponibles[cual], clave, cual);
+  }
+  return `https://picsum.photos/seed/hallado-${idPublicacion}-${indice}/800/600`;
+}
+
+// Se lee una sola vez por corrida: la carpeta no cambia mientras siembra.
+const FOTOS_DEMO = leerFotosDemo();
+
+// La foto que adjunta un reclamo. Mismo criterio que las de las
+// publicaciones, pero sin id: si no hay archivo para esa clave, picsum.
+function fotoDeReclamo(clave, indice = 0) {
+  const disponibles = clave ? FOTOS_DEMO.get(clave) : null;
+  if (disponibles && disponibles.length > 0) {
+    const cual = indice % disponibles.length;
+    return publicarFotoDemo(CARPETA_UPLOADS, disponibles[cual], clave, cual);
+  }
+  return `https://picsum.photos/seed/hallado-reclamo-${clave ?? 'x'}-${indice}/800/600`;
+}
 const DIAS_DE_VIGENCIA = 30;
 
 // Dominio propio para poder borrarlos sin tocar nada mas.
@@ -101,30 +189,30 @@ const CASOS_PERFIL = [
 // `dias` es hace cuantos dias paso, para poder probar los cuatro filtros de
 // "¿Cuando?": hoy (0), ultimos 3 dias (<=3), ultima semana (<=7) y un rango.
 const ENCONTRADAS = [
-  { t: 'Llavero con llaves y control de alarma', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 2, desc: 'Lo encontré en la vereda de Plaza Armenia, cerca de la feria.' },
-  { t: 'Billetera de cuero marrón', cat: 'Documentos', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Estaba arriba de un banco. Tiene documentos adentro, por eso no subo fotos del interior.' },
-  { t: 'iPhone 13 negro con funda transparente', cat: 'Electronica', barrio: 'Belgrano', dias: 1, coords: true, fotos: 3, desc: 'Lo dejaron en el asiento del colectivo. Está bloqueado, no pude avisarle a nadie.' },
-  { t: 'Perro caniche blanco sin collar', cat: 'Mascotas', barrio: 'Caballito', dias: 1, coords: true, fotos: 2, desc: 'Andaba solo por Parque Rivadavia. Lo tengo en casa, es muy manso.' },
-  { t: 'Campera de jean azul talle M', cat: 'Ropa', barrio: 'Almagro', dias: 2, coords: false, fotos: 1, desc: 'Quedó colgada en el respaldo de una silla en un bar.' },
-  { t: 'Anteojos recetados con funda negra', cat: 'Otros', barrio: 'Recoleta', dias: 2, coords: true, fotos: 1, desc: 'Estaban en el pasto, frente a la facultad.' },
-  { t: 'DNI a nombre de M. Pérez', cat: 'Documentos', barrio: 'Flores', dias: 3, coords: false, fotos: 0, desc: 'No subo foto por los datos. Escribime y lo devolvemos.' },
-  { t: 'Juego de llaves con llavero de Boca', cat: 'Llaves', barrio: 'San Telmo', dias: 4, coords: true, fotos: 1, desc: 'Las encontré en la feria de Plaza Dorrego, un domingo a la tarde.' },
-  { t: 'Auriculares inalámbricos en su estuche', cat: 'Electronica', barrio: 'Villa Urquiza', dias: 5, coords: true, fotos: 2, desc: 'Estaban en el andén. Los guardé por si aparece el dueño.' },
-  { t: 'Gato naranja con collar rojo', cat: 'Mascotas', barrio: 'Belgrano', dias: 6, coords: true, fotos: 2, desc: 'Tiene collar pero sin chapita. Está en casa, sano.' },
-  { t: 'Mochila negra con una notebook adentro', cat: 'Otros', barrio: 'Palermo', dias: 8, coords: true, fotos: 2, desc: 'La dejaron en el gimnasio. La tiene guardada el encargado.' },
-  { t: 'Tarjeta SUBE suelta', cat: 'Documentos', barrio: 'Caballito', dias: 10, coords: false, fotos: 1, desc: 'Estaba en el piso del subte. Tiene saldo.' },
-  { t: 'Bufanda tejida gris', cat: 'Ropa', barrio: 'Recoleta', dias: 15, coords: false, fotos: 1, desc: 'Se le cayó a alguien en la plaza.' },
-  { t: 'Reloj Casio plateado', cat: 'Electronica', barrio: 'Almagro', dias: 20, coords: true, fotos: 1, desc: 'Lo encontré en el vestuario del club.' },
+  { clave: 'llaves', t: 'Llavero con llaves y control de alarma', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 2, desc: 'Lo encontré en la vereda de Plaza Armenia, cerca de la feria.' },
+  { clave: 'billetera', t: 'Billetera de cuero marrón', cat: 'Documentos', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Estaba arriba de un banco. Tiene documentos adentro, por eso no subo fotos del interior.' },
+  { clave: 'celular', t: 'iPhone 13 negro con funda transparente', cat: 'Electronica', barrio: 'Belgrano', dias: 1, coords: true, fotos: 3, desc: 'Lo dejaron en el asiento del colectivo. Está bloqueado, no pude avisarle a nadie.' },
+  { clave: 'perro', t: 'Perro caniche blanco sin collar', cat: 'Mascotas', barrio: 'Caballito', dias: 1, coords: true, fotos: 2, desc: 'Andaba solo por Parque Rivadavia. Lo tengo en casa, es muy manso.' },
+  { clave: 'campera', t: 'Campera de jean azul talle M', cat: 'Ropa', barrio: 'Almagro', dias: 2, coords: false, fotos: 1, desc: 'Quedó colgada en el respaldo de una silla en un bar.' },
+  { clave: 'anteojos', t: 'Anteojos recetados con funda negra', cat: 'Otros', barrio: 'Recoleta', dias: 2, coords: true, fotos: 1, desc: 'Estaban en el pasto, frente a la facultad.' },
+  { clave: 'dni', t: 'DNI a nombre de M. Pérez', cat: 'Documentos', barrio: 'Flores', dias: 3, coords: false, fotos: 0, desc: 'No subo foto por los datos. Escribime y lo devolvemos.' },
+  { clave: 'llaves', t: 'Juego de llaves con llavero de Boca', cat: 'Llaves', barrio: 'San Telmo', dias: 4, coords: true, fotos: 1, desc: 'Las encontré en la feria de Plaza Dorrego, un domingo a la tarde.' },
+  { clave: 'auriculares', t: 'Auriculares inalámbricos en su estuche', cat: 'Electronica', barrio: 'Villa Urquiza', dias: 5, coords: true, fotos: 2, desc: 'Estaban en el andén. Los guardé por si aparece el dueño.' },
+  { clave: 'gato', t: 'Gato naranja con collar rojo', cat: 'Mascotas', barrio: 'Belgrano', dias: 6, coords: true, fotos: 2, desc: 'Tiene collar pero sin chapita. Está en casa, sano.' },
+  { clave: 'mochila', t: 'Mochila negra con una notebook adentro', cat: 'Otros', barrio: 'Palermo', dias: 8, coords: true, fotos: 2, desc: 'La dejaron en el gimnasio. La tiene guardada el encargado.' },
+  { clave: 'sube', t: 'Tarjeta SUBE suelta', cat: 'Documentos', barrio: 'Caballito', dias: 10, coords: false, fotos: 1, desc: 'Estaba en el piso del subte. Tiene saldo.' },
+  { clave: 'bufanda', t: 'Bufanda tejida gris', cat: 'Ropa', barrio: 'Recoleta', dias: 15, coords: false, fotos: 1, desc: 'Se le cayó a alguien en la plaza.' },
+  { clave: 'reloj', t: 'Reloj Casio plateado', cat: 'Electronica', barrio: 'Almagro', dias: 20, coords: true, fotos: 1, desc: 'Lo encontré en el vestuario del club.' },
 ];
 
 // Las PERDI son las que ve alguien que encontro algo. Alcanzan cinco: sirven
 // para mostrar que la busqueda devuelve el tipo opuesto, no para paginar.
 const PERDIDAS = [
-  { t: 'Perdí las llaves de mi auto', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Llavero con control de un Gol Trend. Se me cayeron entre la plaza y la parada.' },
-  { t: 'Perdí mi billetera con el DNI', cat: 'Documentos', barrio: 'Belgrano', dias: 1, coords: true, fotos: 0, desc: 'Billetera negra. Lo que más me importa es el DNI.' },
-  { t: 'Se perdió mi gata siamesa', cat: 'Mascotas', barrio: 'Caballito', dias: 2, coords: true, fotos: 2, desc: 'Se escapó por el balcón. Es muy asustadiza, no se deja agarrar.' },
-  { t: 'Perdí una campera de polar roja', cat: 'Ropa', barrio: 'Flores', dias: 4, coords: false, fotos: 1, desc: 'La dejé colgada en el respaldo de una silla.' },
-  { t: 'Perdí mis auriculares con cable', cat: 'Electronica', barrio: 'Palermo', dias: 6, coords: false, fotos: 1, desc: 'Son unos Sony negros, con el cable medio pelado.' },
+  { clave: 'llaves', t: 'Perdí las llaves de mi auto', cat: 'Llaves', barrio: 'Palermo', dias: 0, coords: true, fotos: 1, desc: 'Llavero con control de un Gol Trend. Se me cayeron entre la plaza y la parada.' },
+  { clave: 'billetera', t: 'Perdí mi billetera con el DNI', cat: 'Documentos', barrio: 'Belgrano', dias: 1, coords: true, fotos: 0, desc: 'Billetera negra. Lo que más me importa es el DNI.' },
+  { clave: 'gato', t: 'Se perdió mi gata siamesa', cat: 'Mascotas', barrio: 'Caballito', dias: 2, coords: true, fotos: 2, desc: 'Se escapó por el balcón. Es muy asustadiza, no se deja agarrar.' },
+  { clave: 'campera', t: 'Perdí una campera de polar roja', cat: 'Ropa', barrio: 'Flores', dias: 4, coords: false, fotos: 1, desc: 'La dejé colgada en el respaldo de una silla.' },
+  { clave: 'auriculares', t: 'Perdí mis auriculares con cable', cat: 'Electronica', barrio: 'Palermo', dias: 6, coords: false, fotos: 1, desc: 'Son unos Sony negros, con el cable medio pelado.' },
 ];
 
 // Las cuatro de "Mis publicaciones", una por estado.
@@ -134,13 +222,13 @@ const PERDIDAS = [
 // IF(estado='ABIERTA' AND vence_en<NOW(),'VENCIDA',estado). Poner
 // estado='VENCIDA' a mano mostraria el badge pero no el mecanismo.
 const MIAS = [
-  { t: 'Encontré un paraguas azul en el subte', cat: 'Otros', barrio: 'Almagro', dias: 1, estado: 'ABIERTA', venceEnDias: 29, fotos: 1, desc: 'Quedó en el asiento de la línea A. Lo tengo guardado.' },
-  { t: 'Encontré una campera de niño', cat: 'Ropa', barrio: 'Flores', dias: 5, estado: 'EN_RECLAMO', venceEnDias: 25, fotos: 1, desc: 'Talle 6, con dibujos de dinosaurios. Ya me escribió alguien.' },
-  { t: 'Encontré un perro salchicha', cat: 'Mascotas', barrio: 'Caballito', dias: 20, estado: 'RESUELTA', venceEnDias: 10, fotos: 2, desc: 'Apareció la dueña y se lo llevó. Lo dejo publicado como referencia.' },
-  { t: 'Perdí mi bufanda en el colectivo', cat: 'Ropa', barrio: 'Palermo', dias: 40, estado: 'ABIERTA', venceEnDias: -10, fotos: 0, desc: 'Ya pasaron los 30 días, esta quedó vencida.' },
+  { clave: 'paraguas', t: 'Encontré un paraguas azul en el subte', cat: 'Otros', barrio: 'Almagro', dias: 1, estado: 'ABIERTA', venceEnDias: 29, fotos: 1, desc: 'Quedó en el asiento de la línea A. Lo tengo guardado.' },
+  { clave: 'campera', t: 'Encontré una campera de niño', cat: 'Ropa', barrio: 'Flores', dias: 5, estado: 'EN_RECLAMO', venceEnDias: 25, fotos: 1, desc: 'Talle 6, con dibujos de dinosaurios. Ya me escribió alguien.' },
+  { clave: 'perro', t: 'Encontré un perro salchicha', cat: 'Mascotas', barrio: 'Caballito', dias: 20, estado: 'RESUELTA', venceEnDias: 10, fotos: 2, desc: 'Apareció la dueña y se lo llevó. Lo dejo publicado como referencia.' },
+  { clave: 'bufanda', t: 'Perdí mi bufanda en el colectivo', cat: 'Ropa', barrio: 'Palermo', dias: 40, estado: 'ABIERTA', venceEnDias: -10, fotos: 0, desc: 'Ya pasaron los 30 días, esta quedó vencida.' },
   // Resuelta del otro lado: la persona PERDIO algo y un vecino se lo
   // devolvio. Es el caso de "Recupere" en el historial (punto 10).
-  { t: 'Perdí mi billetera en el subte', cat: 'Documentos', barrio: 'Belgrano', dias: 6, estado: 'RESUELTA', venceEnDias: 24, fotos: 1, desc: 'Billetera marrón con el DNI y la SUBE. Ya apareció.' },
+  { clave: 'billetera', t: 'Perdí mi billetera en el subte', cat: 'Documentos', barrio: 'Belgrano', dias: 6, estado: 'RESUELTA', venceEnDias: 24, fotos: 1, desc: 'Billetera marrón con el DNI y la SUBE. Ya apareció.' },
 ];
 
 // Los reclamos y valoraciones de ejemplo (puntos 7 y 10). Cuelgan de las
@@ -176,6 +264,14 @@ async function main() {
   }
 
   console.log(`${total} publicaciones de vecinos (${ENCONTRADAS.length} encontradas, ${PERDIDAS.length} perdidas).`);
+
+  // Que quede claro de dónde salieron las fotos: es lo primero que se mira
+  // cuando en la demo aparece un paisaje abajo de "Billetera de cuero marrón".
+  if (FOTOS_DEMO.size === 0) {
+    console.log('Fotos: ninguna propia, van imágenes al azar. Ver scripts/fotos-demo/LEEME.md');
+  } else {
+    console.log(`Fotos propias: ${[...FOTOS_DEMO.keys()].sort().join(', ')}. El resto va al azar.`);
+  }
 
   await sembrarCuentaPerfil(vecinos);
   console.log(`Cuenta del perfil: ${CUENTA_PERFIL.email} / ${PASSWORD_DEMO} con ${CASOS_PERFIL.length} casos resueltos.`);
@@ -296,7 +392,7 @@ async function sembrarCuentaPerfil(vecinos) {
       diasRespondido: caso.dias,
       descripcion: tipoPublicacion === 'ENCONTRE' ? 'Es mío, lo reconozco por la foto.' : 'Lo encontré y lo tengo guardado.',
       barrio: tipoPublicacion === 'PERDI' ? caso.barrio : null,
-      foto: `https://picsum.photos/seed/hallado-perfil-reclamo-${i}/800/600`,
+      foto: fotoDeReclamo(caso.clave ?? null, i),
     });
     await pool.query(
       'UPDATE hallado_reclamos SET creado_en = DATE_SUB(respondido_en, INTERVAL 1 DAY) WHERE id = ?',
@@ -376,7 +472,7 @@ async function crearPublicacion(dato, tipo, usuarioId, indice, opciones = {}) {
   for (let i = 0; i < (dato.fotos ?? 0); i++) {
     await pool.query(
       'INSERT INTO hallado_fotos (publicacion_id, url, orden) VALUES (?, ?, ?)',
-      [res.insertId, `https://picsum.photos/seed/hallado-${res.insertId}-${i}/800/600`, i]
+      [res.insertId, urlDeFoto(FOTOS_DEMO, CARPETA_UPLOADS, dato.clave, i, res.insertId), i]
     );
   }
 
@@ -415,7 +511,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
     tipo: 'ES_MIO',
     estado: 'PENDIENTE',
     descripcion: 'Es la campera de mi hijo. Tiene el nombre bordado del lado de adentro.',
-    foto: 'https://picsum.photos/seed/hallado-reclamo-campera/800/600',
+    foto: fotoDeReclamo('campera'),
   });
 
   // 2. Enviado, pendiente: la persona dice "Es mio" sobre el llavero del
@@ -439,7 +535,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
     estado: 'ACEPTADO',
     diasRespondido: 2,
     descripcion: 'Se llama Toto y responde al nombre. Tiene una mancha blanca en el pecho.',
-    foto: 'https://picsum.photos/seed/hallado-reclamo-toto/800/600',
+    foto: fotoDeReclamo('perro'),
   });
   await pool.query(
     "UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL 2 DAY) WHERE id = ?",
@@ -465,7 +561,7 @@ async function sembrarReclamos(usuarioId, mias, vecinos, idsEncontradas) {
     diasRespondido: 1,
     descripcion: 'Estaba en el piso del andén. Tiene el DNI adentro, no la abrí más que para eso.',
     barrio: 'Belgrano',
-    foto: 'https://picsum.photos/seed/hallado-reclamo-billetera/800/600',
+    foto: fotoDeReclamo('billetera'),
   });
   await pool.query(
     "UPDATE hallado_publicaciones SET resuelto_en = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id = ?",
