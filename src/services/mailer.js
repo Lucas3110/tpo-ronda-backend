@@ -7,6 +7,12 @@
 //   smtp    -> manda un mail de verdad con Nodemailer (Gmail App Password).
 //              Para la demo frente al profesor.
 //
+// En los dos modos, mientras NODE_ENV no sea production, el codigo tambien
+// se escribe en la terminal. Con smtp eso es lo unico que permite probar con
+// un email que no sea el propio: el codigo le llega a la casilla de la
+// cuenta que se registra, asi que registrarse como pepe@ejemplo.com dejaria
+// el flujo trabado sin forma de seguir.
+//
 // Como configurar el modo smtp con Gmail:
 //   1. Activar la verificacion en dos pasos en la cuenta de Google.
 //   2. Ir a https://myaccount.google.com/apppasswords y generar una
@@ -103,20 +109,37 @@ function plantillaHtml(codigo, proposito) {
     </div>`;
 }
 
-function imprimirEnConsola(destino, codigo, proposito) {
+// Imprime el codigo en la terminal.
+//
+// `nota` cuenta por que esta apareciendo: cambia si el mail no se mando
+// (modo consola), si se mando igual (copia para poder probar) o si fallo.
+function imprimirEnConsola(destino, codigo, proposito, nota) {
   console.log('');
-  console.log('=============== CÓDIGO OTP (modo consola) ===============');
+  console.log('=================== CÓDIGO OTP ==========================');
   console.log(`  Para:      ${destino}`);
   console.log(`  Propósito: ${proposito}`);
   console.log(`  Código:    ${codigo}`);
   console.log(`  Vence en:  ${config.otp.minutosValidez} minutos`);
+  if (nota) console.log(`  ${nota}`);
   console.log('=========================================================');
   console.log('');
 }
 
+// Fuera de produccion el codigo SIEMPRE se escribe en la terminal, aunque el
+// mail se haya mandado bien.
+//
+// Es la unica forma de probar con un email que no sea el tuyo. Con
+// MAIL_MODE=smtp el codigo le llega a la casilla de la cuenta que se esta
+// registrando, asi que si uno prueba con pepe@ejemplo.com el codigo se va a
+// un buzon al que no tiene acceso y el registro queda trabado.
+//
+// En produccion no se imprime nunca: seria dejar los codigos escritos en los
+// logs del servidor, donde los ve cualquiera que tenga acceso a la maquina.
+const mostrarCodigoEnTerminal = config.entorno !== 'production';
+
 async function enviarCodigoOtp(destino, codigo, proposito) {
   if (config.mail.modo !== 'smtp') {
-    imprimirEnConsola(destino, codigo, proposito);
+    imprimirEnConsola(destino, codigo, proposito, 'MAIL_MODE=console: no se envió ningún mail.');
     return;
   }
 
@@ -128,6 +151,10 @@ async function enviarCodigoOtp(destino, codigo, proposito) {
       text: `Tu código es ${codigo}. Vence en ${config.otp.minutosValidez} minutos.`,
       html: plantillaHtml(codigo, proposito),
     });
+
+    if (mostrarCodigoEnTerminal) {
+      imprimirEnConsola(destino, codigo, proposito, 'El mail salió. Esta copia es para poder probar con otras casillas.');
+    }
   } catch (error) {
     // El codigo ya quedo guardado en la base antes de llegar aca. Si el envio
     // falla y no hacemos nada, la persona espera un mail que no va a llegar
@@ -136,9 +163,8 @@ async function enviarCodigoOtp(destino, codigo, proposito) {
 
     // En desarrollo mostramos el codigo igual, asi una caida del SMTP no deja
     // al equipo sin poder entrar. En produccion eso seria filtrarlo en los logs.
-    if (config.entorno !== 'production') {
-      console.error('       Modo desarrollo: te dejo el código igual por consola.');
-      imprimirEnConsola(destino, codigo, proposito);
+    if (mostrarCodigoEnTerminal) {
+      imprimirEnConsola(destino, codigo, proposito, 'El mail NO salió. El código sirve igual.');
       return;
     }
 
