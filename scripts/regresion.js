@@ -166,6 +166,57 @@ async function main() {
   }
 
   // -------------------------------------------------------------
+  seccion('Punto 1 · Registro con el código en su propia pantalla');
+  // El camino que usa la app: el código se verifica solo y devuelve un
+  // ticket corto, y recién después se mandan nombre y contraseña. Así un
+  // código mal escrito se avisa antes de llenar el formulario.
+  const emailTicket = 'ticket.' + Date.now() + '@ronda.test';
+
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: emailTicket } });
+  const codigoTicket = r.body?.codigoDesarrollo;
+
+  if (!codigoTicket) {
+    console.log('  (se saltea: hace falta OTP_EXPOSE_IN_RESPONSE=true en el .env)');
+  } else {
+    r = await pedir('POST', '/auth/registro/verificar', { body: { email: emailTicket } });
+    chequear('verificar sin código', r.status === 400 && r.body?.error?.codigo === 'CODIGO_REQUERIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/verificar', { body: { email: emailTicket, codigo: '000000' } });
+    chequear('verificar con el código equivocado', r.status === 400 && r.body?.error?.codigo === 'OTP_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/verificar', { body: { email: emailTicket, codigo: codigoTicket } });
+    chequear('verificar el código devuelve el ticket', r.status === 200 && typeof r.body?.ticket === 'string', '| ' + r.status + ' ' + r.body?.error?.codigo);
+    chequear('y dice cuánto dura', r.body?.expiraEnMinutos > 0, '| ' + r.body?.expiraEnMinutos + ' min');
+    const ticket = r.body?.ticket;
+
+    r = await pedir('POST', '/auth/registro/verificar', { body: { email: emailTicket, codigo: codigoTicket } });
+    chequear('el código no se verifica dos veces', r.status >= 400, '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailTicket, ticket, nombre: '123', password: PASSWORD_DEMO } });
+    chequear('un nombre inválido se rechaza', r.status === 400, '| ' + r.body?.error?.codigo);
+    // Y el ticket sobrevive: no se gasta al usarlo, vale los 15 minutos. Si
+    // se consumiera, un error de tipeo en el nombre obligaria a pedir un
+    // codigo nuevo, que es justo lo que este cambio vino a evitar.
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailTicket, ticket: 'esto-no-es-un-ticket', nombre: 'Ticket', password: PASSWORD_DEMO } });
+    chequear('un ticket inventado se rechaza', r.status === 401 && r.body?.error?.codigo === 'TICKET_VENCIDO', '| ' + r.body?.error?.codigo);
+
+    // Un token de sesión está firmado con el mismo secreto: si no se mirara
+    // el campo `uso`, serviría como ticket y cualquiera con su sesión
+    // abierta podría ponerle la contraseña a una cuenta ajena.
+    const sofiaToken = (await pedir('POST', '/auth/login', { body: { email: 'sofia.demo@ronda.app', password: PASSWORD_DEMO } })).body?.token;
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailTicket, ticket: sofiaToken, nombre: 'Ticket', password: PASSWORD_DEMO } });
+    chequear('un token de sesión no sirve como ticket', r.status === 401 && r.body?.error?.codigo === 'TICKET_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/registro/confirmar', { body: { email: emailTicket, ticket, nombre: 'Ticket', password: PASSWORD_DEMO } });
+    chequear('con el ticket se termina el registro', r.status === 200 && !!r.body?.token, '| ' + r.status + ' ' + r.body?.error?.codigo);
+    chequear('y queda la sesión abierta', r.body?.usuario?.email === emailTicket);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailTicket, password: PASSWORD_DEMO } });
+    chequear('se ingresa con esa contraseña', r.status === 200 && !!r.body?.token, '| ' + r.status);
+  }
+
+  // -------------------------------------------------------------
   seccion('Punto 1 · Recupero de contraseña');
   // Cuenta descartable: cambiarle la contraseña a Sofía dejaría al resto
   // del script sin poder ingresar.

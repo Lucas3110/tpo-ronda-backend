@@ -9,9 +9,18 @@ const router = express.Router();
 // Alta de cuenta: crea el usuario y dispara el primer OTP.
 router.post('/registro', controller.registrar);
 
-// Registro en dos pasos, el orden que pide el enunciado de Hallado:
-// solicitar email -> recibir el codigo -> confirmarlo y definir la contrasena.
+// Registro, en el orden que pide el enunciado de Hallado: solicitar email ->
+// recibir el codigo -> confirmarlo -> definir la contrasena.
+//
+// Son tres pedidos y no dos porque el codigo se verifica solo, en su propia
+// pantalla. /verificar lo consume y devuelve un ticket corto; /confirmar
+// recibe ese ticket con el nombre y la contrasena. Asi un codigo mal escrito
+// se avisa en el momento, y no despues de llenar todo el formulario.
+//
+// /confirmar sigue aceptando el codigo directo, que es el camino viejo de
+// un solo paso: la regresion y Postman lo usan asi.
 router.post('/registro/solicitar', controller.solicitarRegistro);
+router.post('/registro/verificar', controller.verificarRegistro);
 router.post('/registro/confirmar', controller.confirmarRegistro);
 
 // Envía (o reenvía) un código. proposito: 'REGISTRO' | 'LOGIN'

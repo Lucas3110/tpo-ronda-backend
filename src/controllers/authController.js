@@ -19,9 +19,18 @@ async function solicitarRegistro(req, res) {
   res.status(201).json(dto);
 }
 
+// Paso 2: confirma el codigo y devuelve el ticket para terminar el registro.
+async function verificarRegistro(req, res) {
+  const { email, codigo } = req.body;
+  const dto = await authService.verificarRegistro({ email, codigo });
+  res.status(200).json(dto);
+}
+
 async function confirmarRegistro(req, res) {
-  const { email, codigo, nombre, password } = req.body;
-  const dto = await authService.confirmarRegistro({ email, codigo, nombre, password });
+  const { email, ticket, codigo, nombre, password } = req.body;
+  const dto = await authService.confirmarRegistro({
+    email, ticket, codigo, nombre, password,
+  });
   res.status(200).json(dto);
 }
 
@@ -73,6 +82,7 @@ async function perfil(req, res) {
 module.exports = {
   registrar,
   solicitarRegistro,
+  verificarRegistro,
   confirmarRegistro,
   enviarOtp,
   verificarOtp,

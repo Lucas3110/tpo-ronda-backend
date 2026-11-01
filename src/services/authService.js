@@ -414,14 +414,94 @@ async function solicitarRegistro({ email }) {
   return toOtpEnviadoDto(codigoParaDesarrollo(codigo));
 }
 
-// POST /api/auth/registro/confirmar
-// Paso 2: el codigo mas el nombre y la contrasena. Deja la sesion abierta,
-// para que la persona no tenga que loguearse justo despues de registrarse.
-async function confirmarRegistro({ email, codigo, nombre, password }) {
+// ---------------------------------------------------------------
+// El ticket de registro
+// ---------------------------------------------------------------
+// Un OTP se consume al verificarlo: no se puede "mirar si esta bien" y
+// despues usarlo de nuevo. Eso obligaba a mandar el codigo junto con el
+// nombre y la contrasena en un solo pedido, y por lo tanto a pedirlos todos
+// en la misma pantalla.
+//
+// El ticket desata ese nudo. Verificar el codigo lo consume una sola vez y
+// devuelve este token corto, que es la prueba de que el email es de quien
+// dice serlo. Despues la persona elige nombre y contrasena con calma, en
+// otra pantalla, y manda el ticket en lugar del codigo.
+//
+// Dura poco a proposito: es permiso para terminar un registro empezado, no
+// una sesion. Si se vence, se pide un codigo nuevo.
+const MINUTOS_TICKET_REGISTRO = 15;
+
+function generarTicketDeRegistro(usuario) {
+  return jwt.sign(
+    { sub: usuario.id, email: usuario.email, uso: 'REGISTRO' },
+    config.jwt.secreto,
+    { expiresIn: `${MINUTOS_TICKET_REGISTRO}m` }
+  );
+}
+
+// Devuelve el id de usuario que el ticket habilita, o explota con un error
+// que la app pueda mostrar tal cual.
+function leerTicketDeRegistro(ticket, mail) {
+  let datos;
+  try {
+    datos = jwt.verify(ticket, config.jwt.secreto);
+  } catch {
+    throw ApiError.unauthorized(
+      `Pasaron mas de ${MINUTOS_TICKET_REGISTRO} minutos desde que confirmaste el codigo. Pedi uno nuevo.`,
+      'TICKET_VENCIDO'
+    );
+  }
+
+  // El chequeo de `uso` no es decorativo: sin el, un token de sesion comun
+  // serviria como ticket, y cualquiera con su sesion abierta podria ponerle
+  // la contrasena a una cuenta ajena. Se firman con el mismo secreto.
+  if (datos.uso !== 'REGISTRO' || datos.email !== mail) {
+    throw ApiError.unauthorized('Ese codigo no corresponde a este registro', 'TICKET_INVALIDO');
+  }
+
+  return datos.sub;
+}
+
+// POST /api/auth/registro/verificar
+// Paso 2 de 3: confirma que el codigo es correcto y devuelve el ticket con
+// el que se termina el registro. Aca se consume el OTP.
+async function verificarRegistro({ email, codigo }) {
   const mail = normalizarEmail(email);
   validarEmail(mail);
 
   if (!codigo) {
+    throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
+  }
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+  if (!usuario) {
+    throw ApiError.notFound('No existe una cuenta con ese email', 'USUARIO_NO_ENCONTRADO');
+  }
+
+  await consumirOtp(usuario, 'REGISTRO', codigo);
+
+  return {
+    ticket: generarTicketDeRegistro(usuario),
+    expiraEnMinutos: MINUTOS_TICKET_REGISTRO,
+  };
+}
+
+// POST /api/auth/registro/confirmar
+// Paso 3: el nombre y la contrasena. Deja la sesion abierta, para que la
+// persona no tenga que loguearse justo despues de registrarse.
+//
+// Acepta dos formas a proposito:
+//   - `ticket`: el camino nuevo, con el codigo ya verificado en su pantalla.
+//   - `codigo`: el de antes, todo junto en un solo pedido.
+//
+// El viejo sigue andando porque es lo que usan la regresion y la coleccion
+// de Postman, y porque un endpoint publicado no se rompe de un dia para el
+// otro. La app usa el nuevo.
+async function confirmarRegistro({ email, ticket, codigo, nombre, password }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  if (!ticket && !codigo) {
     throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
   }
 
@@ -436,7 +516,14 @@ async function confirmarRegistro({ email, codigo, nombre, password }) {
     throw ApiError.notFound('No existe una cuenta con ese email', 'USUARIO_NO_ENCONTRADO');
   }
 
-  await consumirOtp(usuario, 'REGISTRO', codigo);
+  if (ticket) {
+    const idHabilitado = leerTicketDeRegistro(ticket, mail);
+    if (idHabilitado !== usuario.id) {
+      throw ApiError.unauthorized('Ese codigo no corresponde a este registro', 'TICKET_INVALIDO');
+    }
+  } else {
+    await consumirOtp(usuario, 'REGISTRO', codigo);
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
   await pool.query(
@@ -582,6 +669,7 @@ async function confirmarCambioEmail(usuarioId, { codigo }) {
 module.exports = {
   registrar,
   solicitarRegistro,
+  verificarRegistro,
   confirmarRegistro,
   solicitarOtp,
   verificarOtp,
