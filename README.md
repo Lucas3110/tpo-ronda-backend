@@ -52,6 +52,17 @@ npm run db:seed
 npm run dev
 ```
 
+### `dev` o `demo`
+
+`npm run dev` reinicia el servidor solo cuando cambia algo de `src/`. Es lo que
+conviene mientras se programa.
+
+`npm run demo` levanta el servidor **sin vigilar nada**. Es lo que conviene para
+grabar o para mostrarle la app a alguien: el watcher de Node a veces se reinicia
+por su cuenta, y si eso pasa justo cuando la app manda un pedido, la pantalla
+muestra "Sin conexión" aunque el backend esté bien. Pasó grabando la demo, con
+la subida de una foto.
+
 `db:setup` crea la base y **todas** las tablas corriendo en orden los archivos de
 `sql/`. Es idempotente: se puede volver a correr sin romper ni borrar nada.
 
