@@ -67,9 +67,16 @@ async function recuperarPassword(req, res) {
   res.status(200).json(dto);
 }
 
+// Paso 2 del recupero: confirma el codigo y devuelve el ticket.
+async function verificarRecuperoPassword(req, res) {
+  const { email, codigo } = req.body;
+  const dto = await authService.verificarRecuperoPassword({ email, codigo });
+  res.status(200).json(dto);
+}
+
 async function restablecerPassword(req, res) {
-  const { email, codigo, password } = req.body;
-  const dto = await authService.restablecerPassword({ email, codigo, password });
+  const { email, ticket, codigo, password } = req.body;
+  const dto = await authService.restablecerPassword({ email, ticket, codigo, password });
   res.status(200).json(dto);
 }
 
@@ -88,6 +95,7 @@ module.exports = {
   verificarOtp,
   login,
   recuperarPassword,
+  verificarRecuperoPassword,
   restablecerPassword,
   perfil,
 };

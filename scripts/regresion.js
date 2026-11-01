@@ -272,6 +272,57 @@ async function main() {
   }
 
   // -------------------------------------------------------------
+  seccion('Punto 1 · Recupero con el código en su propia pantalla');
+  // Mismo esquema que el registro y por la misma razón: el código se
+  // verifica solo, devuelve un ticket, y la contraseña nueva se elige
+  // después. Así un código mal escrito se avisa antes de tipear nada más.
+  const emailRecTicket = 'rec-ticket.' + Date.now() + '@ronda.test';
+
+  r = await pedir('POST', '/auth/registro/solicitar', { body: { email: emailRecTicket } });
+  const altaRec = r.body?.codigoDesarrollo;
+
+  if (!altaRec) {
+    console.log('  (se saltea: hace falta OTP_EXPOSE_IN_RESPONSE=true en el .env)');
+  } else {
+    await pedir('POST', '/auth/registro/confirmar', { body: { email: emailRecTicket, codigo: altaRec, nombre: 'Rec Ticket', password: PASSWORD_DEMO } });
+
+    r = await pedir('POST', '/auth/password/recuperar', { body: { email: emailRecTicket } });
+    const codigoRec = r.body?.codigoDesarrollo;
+    chequear('pedir el código de recupero', r.status === 200 && !!codigoRec, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/password/verificar', { body: { email: emailRecTicket, codigo: '000000' } });
+    chequear('verificar con el código equivocado', r.status === 400 && r.body?.error?.codigo === 'OTP_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/password/verificar', { body: { email: emailRecTicket, codigo: codigoRec } });
+    chequear('verificar el código devuelve el ticket', r.status === 200 && typeof r.body?.ticket === 'string', '| ' + r.status + ' ' + r.body?.error?.codigo);
+    const ticketRec = r.body?.ticket;
+
+    r = await pedir('POST', '/auth/password/verificar', { body: { email: emailRecTicket, codigo: codigoRec } });
+    chequear('el código no se verifica dos veces', r.status >= 400, '| ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecTicket, ticket: ticketRec, password: '123' } });
+    chequear('contraseña corta no gasta el ticket', r.status === 400 && r.body?.error?.codigo === 'PASSWORD_CORTA', '| ' + r.body?.error?.codigo);
+
+    // Un ticket de registro no puede cambiar una contraseña: el campo `uso`
+    // es lo único que separa los dos flujos.
+    const otroEmail = 'cruzado.' + Date.now() + '@ronda.test';
+    const altaOtro = (await pedir('POST', '/auth/registro/solicitar', { body: { email: otroEmail } })).body?.codigoDesarrollo;
+    const ticketDeRegistro = (await pedir('POST', '/auth/registro/verificar', { body: { email: otroEmail, codigo: altaOtro } })).body?.ticket;
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: otroEmail, ticket: ticketDeRegistro, password: PASSWORD_DEMO } });
+    chequear('un ticket de registro no sirve para recuperar', r.status === 401 && r.body?.error?.codigo === 'TICKET_INVALIDO', '| ' + r.body?.error?.codigo);
+
+    const passwordNueva = 'nuevaclave9';
+    r = await pedir('POST', '/auth/password/restablecer', { body: { email: emailRecTicket, ticket: ticketRec, password: passwordNueva } });
+    chequear('con el ticket se cambia la contraseña', r.status === 200 && !!r.body?.token, '| ' + r.status + ' ' + r.body?.error?.codigo);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailRecTicket, password: passwordNueva } });
+    chequear('se ingresa con la nueva', r.status === 200 && !!r.body?.token, '| ' + r.status);
+
+    r = await pedir('POST', '/auth/login', { body: { email: emailRecTicket, password: PASSWORD_DEMO } });
+    chequear('y con la vieja ya no', r.status === 401, '| ' + r.body?.error?.codigo);
+  }
+
+  // -------------------------------------------------------------
   seccion('Punto 2 · Perfil y reputación');
   r = await pedir('GET', '/usuarios/me', { bearer: sofia.bearer });
   chequear('datos propios', r.status === 200 && r.body.usuario.email !== undefined);

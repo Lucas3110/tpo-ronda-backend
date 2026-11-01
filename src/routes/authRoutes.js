@@ -34,6 +34,10 @@ router.post('/login', controller.login);
 
 // Recupero de contraseña. Volver a llamar a /recuperar es el "reenviar".
 router.post('/password/recuperar', controller.recuperarPassword);
+// Mismo esquema de tres pasos que el registro, y por la misma razon: el
+// codigo se verifica solo y devuelve un ticket, asi la contrasena nueva se
+// elige en otra pantalla.
+router.post('/password/verificar', controller.verificarRecuperoPassword);
 router.post('/password/restablecer', controller.restablecerPassword);
 
 // --- Privadas (requieren Authorization: Bearer <token>) ---

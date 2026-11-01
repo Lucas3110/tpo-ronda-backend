@@ -415,12 +415,16 @@ async function solicitarRegistro({ email }) {
 }
 
 // ---------------------------------------------------------------
-// El ticket de registro
+// Los tickets de un solo uso
 // ---------------------------------------------------------------
 // Un OTP se consume al verificarlo: no se puede "mirar si esta bien" y
 // despues usarlo de nuevo. Eso obligaba a mandar el codigo junto con el
 // nombre y la contrasena en un solo pedido, y por lo tanto a pedirlos todos
 // en la misma pantalla.
+//
+// El mismo mecanismo sirve para el registro y para el recupero de
+// contrasena: el campo `uso` los separa, asi un ticket de recupero no
+// puede terminar un registro ni al reves.
 //
 // El ticket desata ese nudo. Verificar el codigo lo consume una sola vez y
 // devuelve este token corto, que es la prueba de que el email es de quien
@@ -429,25 +433,25 @@ async function solicitarRegistro({ email }) {
 //
 // Dura poco a proposito: es permiso para terminar un registro empezado, no
 // una sesion. Si se vence, se pide un codigo nuevo.
-const MINUTOS_TICKET_REGISTRO = 15;
+const MINUTOS_TICKET = 15;
 
-function generarTicketDeRegistro(usuario) {
+function generarTicket(usuario, uso) {
   return jwt.sign(
-    { sub: usuario.id, email: usuario.email, uso: 'REGISTRO' },
+    { sub: usuario.id, email: usuario.email, uso },
     config.jwt.secreto,
-    { expiresIn: `${MINUTOS_TICKET_REGISTRO}m` }
+    { expiresIn: `${MINUTOS_TICKET}m` }
   );
 }
 
 // Devuelve el id de usuario que el ticket habilita, o explota con un error
 // que la app pueda mostrar tal cual.
-function leerTicketDeRegistro(ticket, mail) {
+function leerTicket(ticket, mail, uso) {
   let datos;
   try {
     datos = jwt.verify(ticket, config.jwt.secreto);
   } catch {
     throw ApiError.unauthorized(
-      `Pasaron mas de ${MINUTOS_TICKET_REGISTRO} minutos desde que confirmaste el codigo. Pedi uno nuevo.`,
+      `Pasaron mas de ${MINUTOS_TICKET} minutos desde que confirmaste el codigo. Pedi uno nuevo.`,
       'TICKET_VENCIDO'
     );
   }
@@ -455,8 +459,8 @@ function leerTicketDeRegistro(ticket, mail) {
   // El chequeo de `uso` no es decorativo: sin el, un token de sesion comun
   // serviria como ticket, y cualquiera con su sesion abierta podria ponerle
   // la contrasena a una cuenta ajena. Se firman con el mismo secreto.
-  if (datos.uso !== 'REGISTRO' || datos.email !== mail) {
-    throw ApiError.unauthorized('Ese codigo no corresponde a este registro', 'TICKET_INVALIDO');
+  if (datos.uso !== uso || datos.email !== mail) {
+    throw ApiError.unauthorized('Ese codigo no corresponde a este pedido', 'TICKET_INVALIDO');
   }
 
   return datos.sub;
@@ -481,8 +485,8 @@ async function verificarRegistro({ email, codigo }) {
   await consumirOtp(usuario, 'REGISTRO', codigo);
 
   return {
-    ticket: generarTicketDeRegistro(usuario),
-    expiraEnMinutos: MINUTOS_TICKET_REGISTRO,
+    ticket: generarTicket(usuario, 'REGISTRO'),
+    expiraEnMinutos: MINUTOS_TICKET,
   };
 }
 
@@ -517,7 +521,7 @@ async function confirmarRegistro({ email, ticket, codigo, nombre, password }) {
   }
 
   if (ticket) {
-    const idHabilitado = leerTicketDeRegistro(ticket, mail);
+    const idHabilitado = leerTicket(ticket, mail, 'REGISTRO');
     if (idHabilitado !== usuario.id) {
       throw ApiError.unauthorized('Ese codigo no corresponde a este registro', 'TICKET_INVALIDO');
     }
@@ -563,11 +567,42 @@ async function solicitarRecuperoPassword({ email }) {
 
 // POST /api/auth/password/restablecer
 // Con el codigo correcto, define la contrasena nueva y abre sesion.
-async function restablecerPassword({ email, codigo, password }) {
+// POST /api/auth/password/verificar
+// Paso 2 de 3 del recupero: confirma el codigo y devuelve el ticket con el
+// que se elige la contrasena nueva. Aca se consume el OTP.
+//
+// Existe por lo mismo que su gemelo del registro: sin esto el codigo tenia
+// que viajar junto con la contrasena nueva, y entonces los dos tenian que
+// pedirse en la misma pantalla.
+async function verificarRecuperoPassword({ email, codigo }) {
   const mail = normalizarEmail(email);
   validarEmail(mail);
 
   if (!codigo) {
+    throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
+  }
+
+  const usuario = await buscarUsuarioPorEmail(mail);
+  if (!usuario) {
+    // No decimos "no existe esa cuenta": en un recupero eso le sirve a un
+    // atacante para averiguar quien tiene cuenta. Sin usuario no hay codigo
+    // que pueda ser correcto, asi que "codigo incorrecto" es la verdad.
+    throw ApiError.badRequest('El codigo es incorrecto', 'OTP_INVALIDO');
+  }
+
+  await consumirOtp(usuario, 'RECUPERO', codigo);
+
+  return { ticket: generarTicket(usuario, 'RECUPERO'), expiraEnMinutos: MINUTOS_TICKET };
+}
+
+// Acepta las dos formas, igual que confirmarRegistro: `ticket` es el camino
+// nuevo, con el codigo ya verificado en su pantalla, y `codigo` el de antes,
+// todo en un solo pedido, que es el que usan la regresion y Postman.
+async function restablecerPassword({ email, ticket, codigo, password }) {
+  const mail = normalizarEmail(email);
+  validarEmail(mail);
+
+  if (!ticket && !codigo) {
     throw ApiError.badRequest('Tenes que enviar el codigo', 'CODIGO_REQUERIDO');
   }
 
@@ -581,7 +616,14 @@ async function restablecerPassword({ email, codigo, password }) {
     throw ApiError.badRequest('El codigo es incorrecto', 'OTP_INVALIDO');
   }
 
-  await consumirOtp(usuario, 'RECUPERO', codigo);
+  if (ticket) {
+    const idHabilitado = leerTicket(ticket, mail, 'RECUPERO');
+    if (idHabilitado !== usuario.id) {
+      throw ApiError.unauthorized('Ese codigo no corresponde a este pedido', 'TICKET_INVALIDO');
+    }
+  } else {
+    await consumirOtp(usuario, 'RECUPERO', codigo);
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
   await pool.query('UPDATE usuarios SET password_hash = ? WHERE id = ?', [
@@ -675,6 +717,7 @@ module.exports = {
   verificarOtp,
   login,
   solicitarRecuperoPassword,
+  verificarRecuperoPassword,
   restablecerPassword,
   obtenerPerfil,
   solicitarCambioEmail,
