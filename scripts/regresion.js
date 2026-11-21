@@ -642,6 +642,9 @@ async function main() {
 
   r = await pedir('PATCH', `/ofertas/${contra.id}`, { bearer: martin.bearer, body: { estado: 'ACEPTADA' } });
   chequear('el comprador acepta la contraoferta', r.status === 200, '| ' + r.status);
+  chequear('y ya sabe que le toca escanear el QR al recibir (Punto 12)',
+    r.body.cierre?.estado === 'PENDIENTE_ENTREGA' && r.body.cierre?.puedoConfirmar === true,
+    '| ' + JSON.stringify(r.body.cierre));
 
   r = await pedir('PATCH', `/ofertas/${contra.id}`, { bearer: martin.bearer, body: { estado: 'RECHAZADA' } });
   chequear('no se responde dos veces', r.status === 409, '| ' + r.body?.error?.codigo);
@@ -659,13 +662,93 @@ async function main() {
   r = await pedir('GET', `/publicaciones/${publicacion.id}`, { bearer: carla.bearer });
   chequear('un tercero sigue sin verla', r.body.publicacion.entregaVisible === false);
 
-  chequear('la publicación quedó VENDIDA', r.body.publicacion.estado === 'VENDIDA');
+  chequear('la publicación quedó RESERVADA hasta la entrega', r.body.publicacion.estado === 'RESERVADA',
+    '| ' + r.body.publicacion.estado);
+
+  // -------------------------------------------------------------
+  seccion('Punto 12 · Cierre de la operación con QR');
+  r = await pedir('GET', '/ofertas/mias', { bearer: sofia.bearer });
+  const aceptadaVendedora = r.body.enviadas.find((o) => o.id === contra.id);
+  chequear('la oferta aceptada trae el cierre', aceptadaVendedora?.cierre?.estado === 'PENDIENTE_ENTREGA',
+    '| ' + JSON.stringify(aceptadaVendedora?.cierre));
+  const codigoEntrega = String(aceptadaVendedora?.cierre?.codigoEntrega);
+  chequear('la vendedora ve el código para imprimir el QR', /^RONDA-[A-Z2-9]{8}$/.test(codigoEntrega),
+    '| ' + codigoEntrega);
+  chequear('a la vendedora no le toca confirmar', aceptadaVendedora?.cierre?.puedoConfirmar === false);
+
+  r = await pedir('GET', '/ofertas/mias', { bearer: martin.bearer });
+  const aceptadaComprador = r.body.recibidas.find((o) => o.id === contra.id);
+  chequear('al comprador le toca escanear', aceptadaComprador?.cierre?.puedoConfirmar === true);
+  chequear('el comprador no ve el código', aceptadaComprador?.cierre?.codigoEntrega === null);
+  const operacionPendiente = aceptadaComprador?.cierre?.operacionId;
+
+  r = await pedir('GET', `/publicaciones/${publicacion.id}`, { bearer: sofia.bearer });
+  chequear('el detalle de la vendedora trae el código', r.body.publicacion.cierre?.codigoEntrega === codigoEntrega);
+  r = await pedir('GET', `/publicaciones/${publicacion.id}`, { bearer: carla.bearer });
+  chequear('un tercero no ve el cierre', r.body.publicacion.cierre === null);
+  r = await pedir('GET', `/publicaciones/${publicacion.id}`);
+  chequear('sin sesión tampoco', r.body.publicacion.cierre === null);
+
+  r = await pedir('GET', '/operaciones', { bearer: sofia.bearer });
+  chequear('hasta el QR la venta no figura en el historial',
+    r.body.ventas.every((v) => v.articulo?.id !== publicacion.id));
+
+  r = await pedir('PUT', `/publicaciones/${publicacion.id}`, { bearer: sofia.bearer, body: alta });
+  chequear('reservada: no se edita', r.status === 409 && r.body?.error?.codigo === 'PUBLICACION_RESERVADA',
+    '| ' + r.body?.error?.codigo);
+  r = await pedir('PATCH', `/publicaciones/${publicacion.id}/estado`, { bearer: sofia.bearer, body: { estado: 'ACTIVA' } });
+  chequear('reservada: no se reactiva a mano', r.status === 409, '| ' + r.body?.error?.codigo);
+  r = await pedir('DELETE', `/publicaciones/${publicacion.id}`, { bearer: sofia.bearer });
+  chequear('reservada: no se elimina', r.status === 409, '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', `/operaciones/${operacionPendiente}/calificacion`, {
+    bearer: martin.bearer, body: { estrellas: 5 },
+  });
+  chequear('no se califica antes de la entrega',
+    r.status === 409 && r.body?.error?.codigo === 'ENTREGA_NO_CONFIRMADA', '| ' + r.body?.error?.codigo);
+
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { bearer: martin.bearer, body: {} });
+  chequear('sin código', r.status === 400 && r.body?.error?.codigo === 'CODIGO_REQUERIDO', '| ' + r.body?.error?.codigo);
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { bearer: martin.bearer, body: { codigo: 'RONDA-NOEXISTE' } });
+  chequear('código inválido', r.status === 404 && r.body?.error?.codigo === 'CODIGO_INVALIDO', '| ' + r.body?.error?.codigo);
+  chequear('con mensaje descriptivo', String(r.body?.error?.mensaje).length > 20, '| ' + r.body?.error?.mensaje);
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { bearer: carla.bearer, body: { codigo: codigoEntrega } });
+  chequear('un tercero no confirma', r.status === 403 && r.body?.error?.codigo === 'NO_SOS_EL_COMPRADOR',
+    '| ' + r.body?.error?.codigo);
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { bearer: sofia.bearer, body: { codigo: codigoEntrega } });
+  chequear('la vendedora tampoco', r.status === 403, '| ' + r.body?.error?.codigo);
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { body: { codigo: codigoEntrega } });
+  chequear('sin sesión no se confirma', r.status === 401);
+
+  r = await pedir('POST', '/operaciones/confirmar-entrega', {
+    bearer: martin.bearer, body: { codigo: ` ${codigoEntrega.toLowerCase()}\n` },
+  });
+  chequear('el comprador confirma (el código llega como salga del lector)', r.status === 200,
+    '| ' + r.status + ' ' + r.body?.error?.codigo);
+  chequear('operación CONCRETADA', r.body.cierre?.estado === 'CONCRETADA');
+  chequear('la publicación pasó a VENDIDA', r.body.publicacion?.estado === 'VENDIDA');
+  chequear('mensaje claro', String(r.body.mensaje).startsWith('Operación confirmada'), '| ' + r.body.mensaje);
+  chequear('la operación viene como en el historial',
+    r.body.operacion?.tipo === 'COMPRA' && r.body.operacion?.calificacion?.puedeCalificar === true);
+
+  r = await pedir('POST', '/operaciones/confirmar-entrega', { bearer: martin.bearer, body: { codigo: codigoEntrega } });
+  chequear('no se confirma dos veces', r.status === 409 && r.body?.error?.codigo === 'ENTREGA_YA_CONFIRMADA',
+    '| ' + r.body?.error?.codigo);
+
+  r = await pedir('GET', `/publicaciones/${publicacion.id}`, { bearer: martin.bearer });
+  chequear('el detalle la muestra vendida y confirmada',
+    r.body.publicacion.estado === 'VENDIDA' && r.body.publicacion.cierre?.estado === 'CONCRETADA'
+      && r.body.publicacion.cierre?.puedoConfirmar === false);
+  r = await pedir('GET', '/publicaciones/mias', { bearer: sofia.bearer });
+  chequear('la vendedora la ve entre las vendidas', r.body.resumen?.vendidas >= 1 && r.body.resumen?.reservadas === 0,
+    '| ' + JSON.stringify(r.body.resumen));
 
   // -------------------------------------------------------------
   seccion('Punto 9 · Historial y calificaciones');
   r = await pedir('GET', '/operaciones', { bearer: sofia.bearer });
   chequear('historial con compras y ventas', Array.isArray(r.body.compras) && Array.isArray(r.body.ventas));
-  chequear('la venta recién cerrada figura', r.body.ventas.length >= 1, '| ' + r.body.ventas.length);
+  chequear('la venta recién cerrada figura', r.body.ventas.some((v) => v.articulo?.id === publicacion.id),
+    '| ' + r.body.ventas.length);
   const venta = r.body.ventas[0];
   chequear('trae artículo, monto y contraparte',
     venta.articulo?.titulo !== undefined && typeof venta.montoFinal === 'number' && venta.contraparte?.nombre);

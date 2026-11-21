@@ -55,4 +55,32 @@ function toCalificacionDto(fila) {
   };
 }
 
-module.exports = { toOperacionDto, toCalificacionDto };
+/**
+ * Punto 12: el cierre de una operación, visto por una de las partes.
+ *
+ * El mismo objeto viaja en "Mis ofertas" (sobre la oferta aceptada), en el
+ * detalle de la publicación y en la respuesta de confirmar la entrega. Qué
+ * trae depende de quién mira:
+ *   - el vendedor ve el código que tiene que imprimir como QR;
+ *   - el comprador ve que le toca escanear (puedoConfirmar), nunca el código.
+ */
+const ESTADOS_CIERRE = {
+  PENDIENTE_ENTREGA: 'Entrega pendiente',
+  CONCRETADA: 'Operación confirmada',
+};
+
+function toCierreDto(fila, usuarioId) {
+  const soyVendedor = fila.vendedor_id === usuarioId;
+  const pendiente = fila.estado === 'PENDIENTE_ENTREGA';
+  return {
+    operacionId: fila.id,
+    estado: fila.estado,
+    estadoTexto: ESTADOS_CIERRE[fila.estado] ?? fila.estado,
+    codigoEntrega: soyVendedor && pendiente ? fila.codigo_entrega : null,
+    puedoConfirmar: !soyVendedor && pendiente,
+    aceptadaEn: fila.aceptada_en ?? null,
+    concretadaEn: fila.concretada_en ?? null,
+  };
+}
+
+module.exports = { toOperacionDto, toCalificacionDto, toCierreDto };

@@ -8,6 +8,8 @@ const {
   toOfertaDto,
   toOfertaConPublicacionDto,
 } = require('../dtos/interaccionDto');
+// Punto 12: el código de entrega nace al aceptar, y el cierre acompaña a la oferta.
+const { generarCodigoEntrega, cierresDeOfertas } = require('./cierreService');
 
 const TEXTO_MAX = 500;
 const MENSAJE_MAX = 500;
@@ -326,10 +328,16 @@ async function responderOferta(ofertaId, usuarioId, estado) {
       // fuera una contraoferta que terminó aceptando.
       const compradorId = oferta.usuario_id;
 
+      // Punto 12: aceptar ya no cierra la venta. Nace la operación
+      // PENDIENTE_ENTREGA con el código que después viaja en el QR físico, y
+      // la publicación queda RESERVADA hasta que el comprador lo escanee.
+      const codigoEntrega = await generarCodigoEntrega(conexion);
       await conexion.query(
-        `INSERT INTO operaciones (publicacion_id, vendedor_id, comprador_id, monto)
-         VALUES (?, ?, ?, ?)`,
-        [oferta.pub_id, oferta.vendedor_id, compradorId, oferta.monto]
+        `INSERT INTO operaciones
+           (publicacion_id, oferta_id, vendedor_id, comprador_id, monto,
+            estado, codigo_entrega, aceptada_en)
+         VALUES (?, ?, ?, ?, ?, 'PENDIENTE_ENTREGA', ?, NOW())`,
+        [oferta.pub_id, oferta.id, oferta.vendedor_id, compradorId, oferta.monto, codigoEntrega]
       );
 
       // El artículo es uno solo: cerrada la venta, las demás ofertas de esa
@@ -340,7 +348,7 @@ async function responderOferta(ofertaId, usuarioId, estado) {
         [oferta.pub_id, oferta.id]
       );
       await conexion.query(
-        `UPDATE publicaciones SET estado = 'VENDIDA' WHERE id = ?`,
+        `UPDATE publicaciones SET estado = 'RESERVADA' WHERE id = ?`,
         [oferta.pub_id]
       );
     }
@@ -353,7 +361,13 @@ async function responderOferta(ofertaId, usuarioId, estado) {
     conexion.release();
   }
 
-  return { oferta: toOfertaDto(await leerOferta(oferta.id)) };
+  // Si se aceptó, quien respondió ve enseguida el cierre: el vendedor su
+  // código para imprimir, el comprador que le toca escanear al recibir.
+  const cierres = estado === 'ACEPTADA' ? await cierresDeOfertas([oferta.id], usuarioId) : new Map();
+  return {
+    oferta: toOfertaDto(await leerOferta(oferta.id)),
+    cierre: cierres.get(oferta.id) ?? null,
+  };
 }
 
 /**
@@ -503,6 +517,13 @@ async function misOfertas(usuarioId, query = {}) {
     for (const p of personas) nombres.set(p.id, p.nombre);
   }
 
+  // Punto 12: sobre las aceptadas va el estado de la entrega (código para el
+  // vendedor, "te toca escanear" para el comprador). Una sola consulta.
+  const cierres = await cierresDeOfertas(
+    filas.filter((f) => f.estado === 'ACEPTADA').map((f) => f.id),
+    usuarioId
+  );
+
   const enviadas = [];
   const recibidas = [];
 
@@ -515,6 +536,7 @@ async function misOfertas(usuarioId, query = {}) {
       contraparte_id: contraparteId,
       contraparte_nombre: nombres.get(contraparteId) ?? null,
       espera_mi_respuesta: fila.estado === 'PENDIENTE' && fila.responde_id === usuarioId,
+      cierre: cierres.get(fila.id) ?? null,
     });
 
     (laPropuseYo ? enviadas : recibidas).push(item);
