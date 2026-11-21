@@ -67,8 +67,8 @@ la subida de una foto.
 `sql/`. Es idempotente: se puede volver a correr sin romper ni borrar nada.
 
 `db:seed` carga datos de ejemplo (3 usuarios, 12 publicaciones con fotos, operaciones
-calificadas) para poder probar el listado y los filtros sin cargar todo a mano. Para
-vaciarlos: `npm run db:seed -- --limpiar`.
+calificadas y una entrega pendiente de confirmar con QR) para poder probar el listado y
+los filtros sin cargar todo a mano. Para vaciarlos: `npm run db:seed -- --limpiar`.
 
 ### Lo único que conviene cambiar del `.env`
 
@@ -172,6 +172,40 @@ El detalle trae un objeto `acciones` calculado en el servidor:
 | GET | `/busquedas-guardadas/:id/resultados` | 🔒 | Correrla (apaga el indicador) |
 | DELETE | `/busquedas-guardadas/:id` | 🔒 | Borrarla |
 
+### Punto 12 · Cierre de la operación con QR
+
+| Método | Ruta | | Qué hace |
+|---|---|---|---|
+| POST | `/operaciones/confirmar-entrega` | 🔒 | El comprador manda el texto del QR que escaneó; cierra la operación |
+
+Cómo se cierra una venta:
+
+1. Al aceptarse una oferta (`PATCH /ofertas/:id`) la publicación pasa a **`RESERVADA`** y
+   nace la operación en estado `PENDIENTE_ENTREGA` con un **código de entrega**
+   (`RONDA-XXXXXXXX`). El código lo ve sólo el vendedor, en `cierre.codigoEntrega` de
+   `GET /ofertas/mias` y de `GET /publicaciones/:id`; el comprador recibe
+   `cierre.puedoConfirmar = true` y nunca el código.
+2. El vendedor imprime el código como QR y lo entrega junto con el artículo. La app no
+   genera el QR (el enunciado pide que sea físico), lo imprime Ronda:
+
+   ```bash
+   npm run qr -- RONDA-XXXXXXXX     # lo muestra en la terminal y deja qr-RONDA-XXXXXXXX.png
+   ```
+3. El comprador lo escanea con la cámara desde la app, que manda `{ "codigo": "..." }`.
+   Si es válido, la operación pasa a `CONCRETADA`, la publicación a `VENDIDA` y la venta
+   aparece en el historial de los dos (Punto 9), desde donde se califica.
+
+Errores propios: `400 CODIGO_REQUERIDO`, `404 CODIGO_INVALIDO`, `403 NO_SOS_EL_COMPRADOR`
+(lo escaneó un tercero o el propio vendedor) y `409 ENTREGA_YA_CONFIRMADA`. Mientras la
+publicación está `RESERVADA` no se puede editar, cambiar de estado ni eliminar
+(`409 PUBLICACION_RESERVADA`), y la operación no se califica hasta que se confirme la
+entrega (`409 ENTREGA_NO_CONFIRMADA`).
+
+Para probarlo sin pasar por toda la negociación, `db:seed` deja una entrega pendiente con
+el código fijo **`RONDA-PRUEBA23`** (vende carla.demo, compra martin.demo). Su QR está en
+`docs/qr-entrega-demo.png`: en el emulador se carga como imagen de la cámara virtual
+(Extended controls → Camera → Virtual scene) y se escanea desde la app con martin.demo.
+
 ### Formato de error
 
 Todos los errores responden con la misma forma:
@@ -246,6 +280,7 @@ src/
 scripts/
 ├── setup-db.js            crea la base y las tablas
 ├── seed-demo.js           datos de ejemplo
+├── qr-entrega.js          imprime el QR de un código de entrega (Punto 12)
 └── generate-postman.js    genera la colección
 sql/
 ├── 01_schema.sql          usuarios y códigos OTP

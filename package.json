@@ -12,6 +12,7 @@
     "db:seed": "node scripts/seed-demo.js",
     "db:seed:hallado": "node scripts/seed-hallado.js",
     "test:api": "node scripts/regresion.js",
+    "qr": "node scripts/qr-entrega.js",
     "test:mail": "node scripts/probar-mail.js"
   },
   "keywords": [
@@ -28,6 +29,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.15.3",
-    "nodemailer": "^7.0.9"
+    "nodemailer": "^7.0.9",
+    "qrcode": "^1.5.4"
   }
 }
