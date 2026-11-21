@@ -573,6 +573,17 @@ async function main() {
 
   r = await pedir('GET', '/publicaciones/mias', { bearer: carla.bearer });
   chequear('mis publicaciones', r.status === 200 && r.body.items.length > 0);
+  chequear('el resumen cuenta las reservadas (Punto 12)', typeof r.body.resumen?.reservadas === 'number',
+    '| ' + JSON.stringify(r.body.resumen));
+
+  r = await pedir('GET', '/publicaciones/mias?estado=RESERVADA', { bearer: carla.bearer });
+  chequear('filtro estado=RESERVADA', r.status === 200 && Array.isArray(r.body.items));
+
+  r = await pedir('PATCH', `/publicaciones/${creada.id}/estado`, {
+    bearer: carla.bearer, body: { estado: 'RESERVADA' },
+  });
+  chequear('reservar a mano no se puede', r.status === 409 && r.body?.error?.codigo === 'TRANSICION_INVALIDA',
+    '| ' + r.body?.error?.codigo);
 
   r = await pedir('PUT', '/publicaciones/borrador', {
     bearer: carla.bearer, body: { paso: 2, datos: { titulo: 'a medio cargar' } },

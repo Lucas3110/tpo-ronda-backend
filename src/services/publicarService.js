@@ -13,15 +13,31 @@ const FOTOS_MAX = 10;
 const DIRECCION_MAX = 255;
 
 const ESTADOS_ARTICULO = ['NUEVO', 'COMO_NUEVO', 'USADO'];
-const ESTADOS_PUBLICACION = ['ACTIVA', 'PAUSADA', 'VENDIDA'];
+const ESTADOS_PUBLICACION = ['ACTIVA', 'PAUSADA', 'RESERVADA', 'VENDIDA'];
 
 // Transiciones permitidas. Tenerlas como diccionario evita que se cuelen
 // cambios sin sentido, como "revivir" algo que ya se vendió.
+//
+// RESERVADA no se elige a mano: la pone el backend al aceptar una oferta
+// (Punto 7) y la saca el escaneo del QR de entrega (Punto 12), que la lleva a
+// VENDIDA. Por eso no aparece como destino de ninguna y no tiene salidas.
 const TRANSICIONES = {
   ACTIVA: ['PAUSADA', 'VENDIDA'],
   PAUSADA: ['ACTIVA', 'VENDIDA'],
+  RESERVADA: [], // hay una venta en curso: la cierra el QR, no el vendedor
   VENDIDA: [], // una vez vendida, la publicación queda cerrada
 };
+
+// Mensaje único para las tres operaciones que una reserva bloquea (editar,
+// cambiar de estado y eliminar), así la app muestra siempre lo mismo.
+function exigirNoReservada(publicacion) {
+  if (publicacion.estado === 'RESERVADA') {
+    throw ApiError.conflict(
+      'La publicación está reservada: hay una venta en curso que se cierra cuando el comprador escanea el QR de entrega',
+      'PUBLICACION_RESERVADA'
+    );
+  }
+}
 
 // ---------------------------------------------------------------
 // Validaciones del alta
@@ -243,6 +259,9 @@ async function editar(publicacionId, usuarioId, datos) {
   if (publicacion.estado === 'VENDIDA') {
     throw ApiError.conflict('No se puede editar una publicación vendida', 'PUBLICACION_VENDIDA');
   }
+  // Punto 12: con una oferta aceptada el comprador ya acordó un artículo y un
+  // precio; cambiarlos ahora sería cambiarle la compra.
+  exigirNoReservada(publicacion);
 
   const d = await validarAlta(datos);
 
@@ -272,6 +291,7 @@ async function editar(publicacionId, usuarioId, datos) {
 }
 
 // PATCH /api/publicaciones/:id/estado   { estado: 'PAUSADA' | 'ACTIVA' | 'VENDIDA' }
+// (RESERVADA no se pide: la maneja el backend, ver TRANSICIONES.)
 async function cambiarEstado(publicacionId, usuarioId, estado) {
   const nuevo = String(estado ?? '').trim().toUpperCase();
   if (!ESTADOS_PUBLICACION.includes(nuevo)) {
@@ -286,6 +306,7 @@ async function cambiarEstado(publicacionId, usuarioId, estado) {
   if (publicacion.estado === nuevo) {
     throw ApiError.conflict(`La publicación ya está ${nuevo.toLowerCase()}`, 'MISMO_ESTADO');
   }
+  exigirNoReservada(publicacion);
   if (!TRANSICIONES[publicacion.estado].includes(nuevo)) {
     throw ApiError.conflict(
       `No se puede pasar de ${publicacion.estado} a ${nuevo}`,
@@ -305,6 +326,9 @@ async function cambiarEstado(publicacionId, usuarioId, estado) {
 // DELETE /api/publicaciones/:id
 async function eliminar(publicacionId, usuarioId) {
   const publicacion = await buscarPropia(publicacionId, usuarioId);
+  // Punto 12: borrar algo reservado dejaría al comprador con un QR que no
+  // apunta a nada.
+  exigirNoReservada(publicacion);
   // El ON DELETE CASCADE se lleva fotos, preguntas, ofertas y favoritos.
   await pool.query('DELETE FROM publicaciones WHERE id = ?', [publicacion.id]);
   return { mensaje: 'Publicación eliminada', id: publicacion.id };
@@ -352,7 +376,7 @@ async function misPublicaciones(usuarioId, query) {
        FROM publicaciones WHERE vendedor_id = ? GROUP BY estado`,
     [usuarioId]
   );
-  const conteo = { ACTIVA: 0, PAUSADA: 0, VENDIDA: 0 };
+  const conteo = { ACTIVA: 0, PAUSADA: 0, RESERVADA: 0, VENDIDA: 0 };
   for (const fila of resumen) conteo[fila.estado] = Number(fila.cantidad);
 
   return {
@@ -364,8 +388,10 @@ async function misPublicaciones(usuarioId, query) {
     resumen: {
       activas: conteo.ACTIVA,
       pausadas: conteo.PAUSADA,
+      // Punto 12: con oferta aceptada y a la espera del QR de entrega.
+      reservadas: conteo.RESERVADA,
       vendidas: conteo.VENDIDA,
-      total: conteo.ACTIVA + conteo.PAUSADA + conteo.VENDIDA,
+      total: conteo.ACTIVA + conteo.PAUSADA + conteo.RESERVADA + conteo.VENDIDA,
     },
   };
 }
