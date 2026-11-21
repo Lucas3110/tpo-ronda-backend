@@ -68,6 +68,8 @@ function toOfertaConPublicacionDto(fila) {
     // true = me toca responder a mí. Lo calcula el backend para que la app
     // no tenga que cruzar origen, estado y quién soy en cada fila.
     esperaMiRespuesta: Boolean(fila.espera_mi_respuesta),
+    // Punto 12: sólo en las aceptadas. Ver toCierreDto en operacionDto.
+    cierre: fila.cierre ?? null,
   };
 }
 

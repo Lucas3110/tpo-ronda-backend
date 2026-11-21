@@ -1,4 +1,10 @@
 // Punto 9: historial de operaciones y calificaciones.
+//
+// Desde el Punto 12 una operación nace PENDIENTE_ENTREGA al aceptarse la
+// oferta y pasa a CONCRETADA cuando el comprador escanea el QR. Acá cuenta
+// sólo lo CONCRETADO: el historial es de "operaciones concretadas" y los 7
+// días para calificar corren desde la entrega (concretada_en), no desde que
+// se cerró el precio.
 const { pool } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const { toOperacionDto, toCalificacionDto } = require('../dtos/operacionDto');
@@ -108,7 +114,7 @@ async function listarHistorial(usuarioId, query = {}) {
     );
   }
 
-  const condiciones = ['(o.comprador_id = ? OR o.vendedor_id = ?)'];
+  const condiciones = ["o.estado = 'CONCRETADA'", '(o.comprador_id = ? OR o.vendedor_id = ?)'];
   const parametros = [...paramsDeUsuario(usuarioId), usuarioId, usuarioId];
 
   if (desde) {
@@ -154,7 +160,8 @@ async function listarHistorial(usuarioId, query = {}) {
 async function pendientesDeCalificar(usuarioId) {
   const [filas] = await pool.query(
     `${SELECT_HISTORIAL}
-      WHERE (o.comprador_id = ? OR o.vendedor_id = ?)
+      WHERE o.estado = 'CONCRETADA'
+        AND (o.comprador_id = ? OR o.vendedor_id = ?)
         AND DATE_ADD(o.concretada_en, INTERVAL ${DIAS_PARA_CALIFICAR} DAY) >= NOW()
         AND NOT EXISTS (
           SELECT 1 FROM calificaciones c
@@ -222,6 +229,14 @@ async function calificar(operacionId, usuarioId, { estrellas, comentario }) {
   const soyVendedor = operacion.vendedor_id === usuarioId;
   if (!soyComprador && !soyVendedor) {
     throw ApiError.forbidden('No participaste de esa operación', 'NO_SOS_PARTE');
+  }
+
+  // Punto 12: se califica la entrega, así que primero tiene que haber entrega.
+  if (operacion.estado !== 'CONCRETADA') {
+    throw ApiError.conflict(
+      'Todavía no se confirmó la entrega: se puede calificar después de que el comprador escanee el QR',
+      'ENTREGA_NO_CONFIRMADA'
+    );
   }
 
   if (Number(operacion.dias_restantes) < 0) {

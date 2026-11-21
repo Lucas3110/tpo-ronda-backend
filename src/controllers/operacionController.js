@@ -1,5 +1,7 @@
 // Punto 9: historial de operaciones y calificaciones.
+// Punto 12: confirmación de la entrega con el QR.
 const operacionService = require('../services/operacionService');
+const cierreService = require('../services/cierreService');
 
 async function historial(req, res) {
   res.status(200).json(await operacionService.listarHistorial(req.usuario.id, req.query));
@@ -22,4 +24,14 @@ async function calificacionesDeUsuario(req, res) {
   res.status(200).json(await operacionService.calificacionesDe(req.params.id));
 }
 
-module.exports = { historial, pendientesDeCalificar, calificar, calificacionesDeUsuario };
+async function confirmarEntrega(req, res) {
+  res.status(200).json(await cierreService.confirmarEntrega(req.usuario.id, req.body.codigo));
+}
+
+module.exports = {
+  historial,
+  pendientesDeCalificar,
+  calificar,
+  calificacionesDeUsuario,
+  confirmarEntrega,
+};

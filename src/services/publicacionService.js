@@ -357,6 +357,10 @@ async function obtenerDetalle(publicacionId, usuarioId = null) {
     // de un hueco sin explicacion.
     entrega: toEntregaDto(publicacion, puedeVerEntrega),
     entregaVisible: puedeVerEntrega,
+    // Punto 12: si hay una venta en curso o cerrada y quien mira es parte,
+    // el estado de la entrega (código para el vendedor, escaneo para el
+    // comprador). null para terceros y sin sesión.
+    cierre: await require('./cierreService').cierreDePublicacion(id, usuarioId),
     acciones: toAccionesDto({
       esVendedor,
       autenticado: usuarioId !== null,

@@ -44,8 +44,8 @@ async function obtenerReputacion(usuarioId) {
     `SELECT
         (SELECT AVG(estrellas) FROM calificaciones WHERE calificado_id = ?)  AS promedio_estrellas,
         (SELECT COUNT(*)       FROM calificaciones WHERE calificado_id = ?)  AS cantidad_calificaciones,
-        (SELECT COUNT(*)       FROM operaciones    WHERE vendedor_id  = ?)   AS operaciones_vendedor,
-        (SELECT COUNT(*)       FROM operaciones    WHERE comprador_id = ?)   AS operaciones_comprador`,
+        (SELECT COUNT(*)       FROM operaciones    WHERE vendedor_id  = ? AND estado = 'CONCRETADA') AS operaciones_vendedor,
+        (SELECT COUNT(*)       FROM operaciones    WHERE comprador_id = ? AND estado = 'CONCRETADA') AS operaciones_comprador`,
     [usuarioId, usuarioId, usuarioId, usuarioId]
   );
   return filas[0];
