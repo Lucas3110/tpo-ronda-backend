@@ -122,7 +122,7 @@ Parámetros de `/publicaciones`:
 | `estadoArticulo` | `NUEVO`, `COMO_NUEVO`, `USADO` (varios con coma) | condición del artículo |
 | `zonaId` | id | filtro por zona |
 | `vendedorId` | id | publicaciones de una persona |
-| `estado` | `ACTIVA` (por defecto), `PAUSADA`, `VENDIDA`, `TODAS` | situación del aviso |
+| `estado` | `ACTIVA` (por defecto), `PAUSADA`, `RESERVADA`, `VENDIDA`, `TODAS` | situación del aviso |
 | `orden` | `recientes`, `precio_asc`, `precio_desc`, `cercania` | ordenamiento |
 
 `orden=cercania` necesita sesión con zona configurada; si no, responde
