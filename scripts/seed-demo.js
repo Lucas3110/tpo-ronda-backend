@@ -13,6 +13,10 @@ const { pool } = require('../src/config/db');
 
 const PASSWORD_DEMO = 'demo1234';
 
+// Punto 12: el código de la entrega pendiente que deja el seed. Es fijo para
+// que el QR de docs/qr-entrega-demo.png sirva siempre para probar el escaneo.
+const CODIGO_ENTREGA_DEMO = 'RONDA-PRUEBA23';
+
 const USUARIOS = [
   { email: 'sofia.demo@ronda.app', nombre: 'Sofía Ramírez', telefono: '11 4444-1111', zona: 'Palermo' },
   { email: 'martin.demo@ronda.app', nombre: 'Martín Sosa', telefono: '11 4444-2222', zona: 'Quilmes' },
@@ -216,10 +220,14 @@ async function main() {
   ];
 
   for (const op of operaciones) {
+    // CONCRETADA: estas ya pasaron por la entrega (Punto 12). El precio se
+    // tomó como cerrado el día anterior a concretarse.
     const [res] = await pool.query(
-      `INSERT INTO operaciones (publicacion_id, vendedor_id, comprador_id, monto, concretada_en)
-       VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))`,
-      [op.pub.id, idsUsuarios[0], op.comprador, op.pub.precio, op.diasAtras]
+      `INSERT INTO operaciones
+         (publicacion_id, vendedor_id, comprador_id, monto, estado, aceptada_en, concretada_en)
+       VALUES (?, ?, ?, ?, 'CONCRETADA',
+               DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY))`,
+      [op.pub.id, idsUsuarios[0], op.comprador, op.pub.precio, op.diasAtras + 1, op.diasAtras]
     );
     await pool.query(`UPDATE publicaciones SET estado = 'VENDIDA' WHERE id = ?`, [op.pub.id]);
 
@@ -234,6 +242,37 @@ async function main() {
     }
   }
   console.log(`  ${operaciones.length} operaciones (2 calificadas, 1 pendiente)`);
+
+  // Punto 12: una venta con el precio ya cerrado y la entrega todavía sin
+  // confirmar. La oferta de Martín quedó ACEPTADA, la publicación RESERVADA y
+  // la operación PENDIENTE_ENTREGA con el código fijo de arriba. Vende Carla
+  // (Sofía se queda con una activa para las pruebas): Carla ve el código en
+  // "Mis ofertas" y Martín confirma escaneando el QR.
+  const [reservables] = await pool.query(
+    `SELECT id, precio FROM publicaciones
+      WHERE vendedor_id = ? AND estado = 'ACTIVA' ORDER BY id LIMIT 1`,
+    [idsUsuarios[2]]
+  );
+  if (reservables.length > 0) {
+    const pub = reservables[0];
+    const montoAcordado = Number(pub.precio) - 5000;
+    const [oferta] = await pool.query(
+      `INSERT INTO ofertas
+         (publicacion_id, usuario_id, monto, mensaje, origen, estado, respondida_en, expira_en, creado_en)
+       VALUES (?, ?, ?, 'Lo paso a buscar el fin de semana', 'COMPRADOR', 'ACEPTADA',
+               DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 70 HOUR),
+               DATE_SUB(NOW(), INTERVAL 2 DAY))`,
+      [pub.id, idsUsuarios[1], montoAcordado]
+    );
+    await pool.query(
+      `INSERT INTO operaciones
+         (publicacion_id, oferta_id, vendedor_id, comprador_id, monto, estado, codigo_entrega, aceptada_en)
+       VALUES (?, ?, ?, ?, ?, 'PENDIENTE_ENTREGA', ?, DATE_SUB(NOW(), INTERVAL 1 DAY))`,
+      [pub.id, oferta.insertId, idsUsuarios[2], idsUsuarios[1], montoAcordado, CODIGO_ENTREGA_DEMO]
+    );
+    await pool.query(`UPDATE publicaciones SET estado = 'RESERVADA' WHERE id = ?`, [pub.id]);
+    console.log(`  1 entrega pendiente de confirmar (código ${CODIGO_ENTREGA_DEMO}: la escanea martin.demo)`);
+  }
 
   await pool.end();
   console.log('');
