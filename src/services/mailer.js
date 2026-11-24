@@ -21,7 +21,7 @@
 //   3. En el .env:  MAIL_MODE=smtp
 //                   SMTP_USER=tu.cuenta@gmail.com
 //                   SMTP_PASS=la contraseña de aplicacion
-//                   MAIL_FROM=Hallado <tu.cuenta@gmail.com>
+//                   MAIL_FROM=Ronda <tu.cuenta@gmail.com>
 //
 // Ojo con MAIL_FROM: Gmail reescribe el remitente al de la cuenta autenticada.
 // Poner un dominio ajeno (no-reply@ronda.app) hace que el mail caiga en spam,
@@ -85,10 +85,9 @@ const TITULOS_OTP = {
   RECUPERO: 'Recuperá tu contraseña',
 };
 
-// El nombre va en una sola constante. La primera versión lo tenía escrito en
-// cuatro strings distintos, y al renombrar la app a Hallado quedaron mails
-// diciendo "Ronda" cuando la pantalla ya decía otra cosa.
-const APP = 'Hallado';
+// El nombre va en una sola constante: así el asunto y el título del mail no
+// pueden quedar con nombres distintos.
+const APP = 'Ronda';
 
 const ASUNTOS_OTP = {
   REGISTRO: `Confirmá tu cuenta en ${APP}`,
